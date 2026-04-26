@@ -1,0 +1,18 @@
+<resources>
+
+    <style name="Theme.APOSBandjak" parent="Theme.MaterialComponents.Light.NoActionBar">
+
+        <!-- Primary BCA -->
+        <item name="colorPrimary">#005BAC</item>
+        <item name="colorPrimaryVariant">#003A70</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+
+        <!-- Background -->
+        <item name="android:colorBackground">#EAF3FF</item>
+
+        <!-- Status bar -->
+        <item name="android:statusBarColor">#003A70</item>
+
+    </style>
+
+</resources>

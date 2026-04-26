@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:padding="14dp"
+    android:background="#FFFFFF"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <!-- NAME -->
+    <TextView
+        android:id="@+id/dpName"
+        android:text="IBU IIS"
+        android:textSize="15sp"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/dpAmount"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        android:layout_marginEnd="8dp"/>
+
+    <!-- AMOUNT -->
+    <TextView
+        android:id="@+id/dpAmount"
+        android:text="Rp789.360"
+        android:textStyle="bold"
+        android:textSize="15sp"
+        android:fontFamily="monospace"
+        android:gravity="end"
+        android:layout_width="140dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"/>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

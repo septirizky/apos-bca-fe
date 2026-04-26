@@ -1,0 +1,35 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET"/>
+
+    <application
+        android:usesCleartextTraffic="true"
+        android:label="APOS BANDJAK"
+        android:theme="@style/Theme.APOSBandjak">
+        <!-- Login -->
+        <activity
+            android:name="com.bandjak.pos.ui.login.LoginActivity"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+
+        </activity>
+
+        <!-- Orders list -->
+        <activity
+            android:name="com.bandjak.pos.ui.orders.OrdersActivity"/>
+
+        <!-- Order Detail -->
+        <activity
+            android:name="com.bandjak.pos.ui.orders.OrderDetailActivity"/>
+
+        <!-- Down Payment -->
+        <activity
+            android:name="com.bandjak.pos.ui.orders.DownPaymentActivity"/>
+
+    </application>
+
+</manifest>

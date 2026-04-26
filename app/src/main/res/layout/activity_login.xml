@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F8FAFC"
+    android:orientation="vertical">
+
+    <!-- GLOBAL HEADER -->
+    <include
+        android:id="@+id/globalHeader"
+        layout="@layout/layout_global_header" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="8dp">
+
+        <!-- STATUS CARD -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="0dp"
+            app:strokeColor="#E2E8F0"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <ImageView
+                    android:id="@+id/statusIcon"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:src="@android:drawable/checkbox_on_background"
+                    android:contentDescription="Status Icon"
+                    app:tint="#10B981" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="SYSTEM STATUS"
+                    android:textColor="#0D9488"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/txtStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Checking..."
+                    android:textColor="#1E293B"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Local Connection Established"
+                    android:textColor="#64748B"
+                    android:textSize="11sp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="center"
+            android:text="Enter Access PIN"
+            android:textColor="#1E293B"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <!-- PIN DOTS -->
+        <LinearLayout
+            android:id="@+id/pinDotsContainer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+            <View android:id="@+id/dot1" android:layout_width="12dp" android:layout_height="12dp" android:layout_margin="6dp" android:background="@android:drawable/presence_invisible" />
+            <View android:id="@+id/dot2" android:layout_width="12dp" android:layout_height="12dp" android:layout_margin="6dp" android:background="@android:drawable/presence_invisible" />
+            <View android:id="@+id/dot3" android:layout_width="12dp" android:layout_height="12dp" android:layout_margin="6dp" android:background="@android:drawable/presence_invisible" />
+            <View android:id="@+id/dot4" android:layout_width="12dp" android:layout_height="12dp" android:layout_margin="6dp" android:background="@android:drawable/presence_invisible" />
+            <View android:id="@+id/dot5" android:layout_width="12dp" android:layout_height="12dp" android:layout_margin="6dp" android:background="@android:drawable/presence_invisible" />
+            <View android:id="@+id/dot6" android:layout_width="12dp" android:layout_height="12dp" android:layout_margin="6dp" android:background="@android:drawable/presence_invisible" />
+        </LinearLayout>
+
+        <!-- NUMERIC KEYPAD -->
+        <GridLayout
+            android:id="@+id/numericKeypad"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="8dp"
+            android:layout_weight="1"
+            android:columnCount="3"
+            android:rowCount="4">
+
+            <Button android:id="@+id/btn1" style="@style/Widget.MaterialComponents.Button.TextButton" android:text="1" android:textSize="20sp" android:textColor="#1E293B" android:layout_width="0dp" android:layout_height="0dp" android:layout_columnWeight="1" android:layout_rowWeight="1"/>
+            <Button android:id="@+id/btn2" style="@style/Widget.MaterialComponents.Button.TextButton" android:text="2" android:textSize="20sp" android:textColor="#1E293B" android:layout_width="0dp" android:layout_height="0dp" android:layout_columnWeight="1" android:layout_rowWeight="1"/>
+            <Button android:id="@+id/btn3" style="@style/Widget.MaterialComponents.Button.TextButton" android:text="3" android:textSize="20sp" android:textColor="#1E293B" android:layout_width="0dp" android:layout_height="0dp" android:layout_columnWeight="1" android:layout_rowWeight="1"/>
+
+            <Button android:id="@+id/btn4" style="@style/Widget.MaterialComponents.Button.TextButton" android:text="4" android:textSize="20sp" android:textColor="#1E293B" android:layout_width="0dp" android:layout_height="0dp" android:layout_columnWeight="1" android:layout_rowWeight="1"/>
+            <Button android:id="@+id/btn5" style="@style/Widget.MaterialComponents.Button.TextButton" android:text="5" android:textSize="20sp" android:textColor="#1E293B" android:layout_width="0dp" android:layout_height="0dp" android:layout_columnWeight="1" android:layout_rowWeight="1"/>
+            <Button android:id="@+id/btn6" style="@style/Widget.MaterialComponents.Button.TextButton" android:text="6" android:textSize="20sp" android:textColor="#1E293B" android:layout_width="0dp" android:layout_height="0dp" android:layout_columnWeight="1" android:layout_rowWeight="1"/>
+
+            <Button android:id="@+id/btn7" style="@style/Widget.MaterialComponents.Button.TextButton" android:text="7" android:textSize="20sp" android:textColor="#1E293B" android:layout_width="0dp" android:layout_height="0dp" android:layout_columnWeight="1" android:layout_rowWeight="1"/>
+            <Button android:id="@+id/btn8" style="@style/Widget.MaterialComponents.Button.TextButton" android:text="8" android:textSize="20sp" android:textColor="#1E293B" android:layout_width="0dp" android:layout_height="0dp" android:layout_columnWeight="1" android:layout_rowWeight="1"/>
+            <Button android:id="@+id/btn9" style="@style/Widget.MaterialComponents.Button.TextButton" android:text="9" android:textSize="20sp" android:textColor="#1E293B" android:layout_width="0dp" android:layout_height="0dp" android:layout_columnWeight="1" android:layout_rowWeight="1"/>
+
+            <Button android:id="@+id/btnClear" style="@style/Widget.MaterialComponents.Button.TextButton" android:text="Clear" android:textSize="12sp" android:textColor="#94A3B8" android:layout_width="0dp" android:layout_height="0dp" android:layout_columnWeight="1" android:layout_rowWeight="1" android:textAllCaps="false"/>
+            <Button android:id="@+id/btn0" style="@style/Widget.MaterialComponents.Button.TextButton" android:text="0" android:textSize="20sp" android:textColor="#1E293B" android:layout_width="0dp" android:layout_height="0dp" android:layout_columnWeight="1" android:layout_rowWeight="1"/>
+            <ImageButton android:id="@+id/btnDelete" style="@style/Widget.MaterialComponents.Button.TextButton" android:src="@android:drawable/ic_input_delete" app:tint="#94A3B8" android:layout_width="0dp" android:layout_height="0dp" android:layout_columnWeight="1" android:layout_rowWeight="1" android:contentDescription="Delete" />
+        </GridLayout>
+
+        <Button
+            android:id="@+id/btnLogin"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="8dp"
+            android:backgroundTint="#1A0DAB"
+            android:text="LOGIN"
+            android:textAllCaps="false"
+            android:textStyle="bold"
+            app:cornerRadius="8dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:gravity="center"
+            android:paddingBottom="8dp"
+            android:text="APP VERSION\nv1.0.0"
+            android:textColor="#94A3B8"
+            android:textSize="11sp" />
+    </LinearLayout>
+</LinearLayout>
