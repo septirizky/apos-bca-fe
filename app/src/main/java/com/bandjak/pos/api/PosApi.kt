@@ -37,4 +37,14 @@ interface PosApi {
 
     @GET("api/down-payments")
     fun getDownPayments(): Call<List<DownPayment>>
+
+    @POST("api/vouchers/validate")
+    fun validateVoucher(
+        @Body body: VoucherValidateRequest
+    ): Call<VoucherValidateResponse>
+
+    @POST("api/payment")
+    fun completePayment(
+        @Body body: PaymentRequest
+    ): Call<PaymentResponse>
 }

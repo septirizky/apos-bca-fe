@@ -4,6 +4,9 @@ import com.google.gson.annotations.SerializedName
 
 data class DownPayment(
 
+    @SerializedName("dp_id")
+    val id: Int?,
+
     @SerializedName("dp_name")
     val name: String,
 

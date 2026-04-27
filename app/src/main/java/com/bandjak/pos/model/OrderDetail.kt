@@ -3,6 +3,12 @@ package com.bandjak.pos.model
 import com.google.gson.annotations.SerializedName
 
 data class OrderDetailResponse(
+    @SerializedName("o_id")
+    val orderId: Int?,
+    @SerializedName("is_id")
+    val itemSaleId: Int?,
+    @SerializedName("next_is_counter")
+    val nextItemSaleCounter: Int?,
     @SerializedName("t_name")
     val tName: String?,
     @SerializedName("m_code")

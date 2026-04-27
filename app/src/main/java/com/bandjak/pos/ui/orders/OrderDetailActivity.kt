@@ -44,6 +44,9 @@ class OrderDetailActivity : AppCompatActivity() {
     private var currentMemberCode: String? = null
     private var currentTableName: String? = null
     private var currentTotalAmount: Double = 0.0
+    private var currentDiscountAmount: Double = 0.0
+    private var currentItemSaleId: Int = 0
+    private var currentItemSaleCounter: Int = 0
     private val autoRefreshTimer = AutoRefreshTimer {
         updateHeaderDateTime()
         loadBranchName()
@@ -65,6 +68,8 @@ class OrderDetailActivity : AppCompatActivity() {
         val userName = intent.getStringExtra("U_NAME") ?: "Admin User"
         binding.globalHeader.headerUserSection.visibility = View.VISIBLE
         binding.globalHeader.headerUserName.text = userName
+        binding.globalHeader.headerBackButton.visibility = View.VISIBLE
+        binding.globalHeader.headerBackButton.setOnClickListener { finish() }
         
         updateHeaderDateTime()
 
@@ -87,8 +92,32 @@ class OrderDetailActivity : AppCompatActivity() {
             showDiscountDialog()
         }
 
+        binding.discountSummaryCard.setOnClickListener {
+            showDiscountDialog()
+        }
+
+        binding.btnRemoveDiscountSummary.setOnClickListener {
+            removeMemberCodeFromSummary()
+        }
+
         binding.btnPayment.setOnClickListener {
-            Toast.makeText(this, "Payment belum aktif", Toast.LENGTH_SHORT).show()
+            if (currentItemSaleId == 0) {
+                Toast.makeText(this, "Transaction ID belum tersedia", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val intent = Intent(this, PaymentActivity::class.java).apply {
+                putExtra("ORDER_ID", currentOrderId)
+                putExtra("IS_ID", currentItemSaleId)
+                putExtra("IS_COUNTER", currentItemSaleCounter)
+                putExtra("TABLE_NAME", currentTableName ?: currentOrderId.toString())
+                putExtra("TOTAL_AMOUNT", currentTotalAmount)
+                putExtra("DISCOUNT_AMOUNT", currentDiscountAmount)
+                putExtra("MEMBER_CODE", currentMemberCode)
+                putExtra("U_NAME", getIntent().getStringExtra("U_NAME") ?: "Admin User")
+                putExtra("U_ID", getIntent().getIntExtra("U_ID", 0))
+            }
+            startActivity(intent)
         }
     }
 
@@ -216,6 +245,8 @@ class OrderDetailActivity : AppCompatActivity() {
                 if (response.isSuccessful && response.body() != null) {
                     val data = response.body()!!
                     currentMemberCode = data.memberCode
+                    currentItemSaleId = data.itemSaleId ?: 0
+                    currentItemSaleCounter = data.nextItemSaleCounter ?: 0
                     currentTableName = data.tName ?: orderId.toString()
                     binding.txtTableNumber.text = "Table ${data.tName ?: orderId}"
                     adapter.update(data.items)
@@ -235,10 +266,67 @@ class OrderDetailActivity : AppCompatActivity() {
         val memberCode = currentMemberCode
 
         binding.btnAddDiscount.text = if (memberCode.isNullOrBlank()) {
-            "Add Discount"
+            "Tambah Diskon"
         } else {
-            "Member: $memberCode"
+            "Member : $memberCode"
         }
+    }
+
+    private fun updateDiscountSummary() {
+        val hasDiscount = currentDiscountAmount > 0
+
+        binding.discountSummaryCard.visibility = if (hasDiscount) View.VISIBLE else View.GONE
+        binding.btnAddDiscount.visibility = if (hasDiscount) View.GONE else View.VISIBLE
+
+        if (!hasDiscount) return
+
+        binding.txtDiscountSummaryTitle.text = "Diskon"
+        binding.txtDiscountSummarySubtitle.text = if (currentMemberCode.isNullOrBlank()) {
+            "Applied discount"
+        } else {
+            "Member - $currentMemberCode"
+        }
+        binding.txtDiscountSummaryAmount.text = "-${formatRupiah(currentDiscountAmount)}"
+    }
+
+    private fun removeMemberCodeFromSummary() {
+        if (currentMemberCode.isNullOrBlank()) {
+            Toast.makeText(this, "Diskon tidak bisa dihapus dari sini", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        binding.btnRemoveDiscountSummary.isEnabled = false
+        ApiClient.api.updateOrderMemberCode(
+            currentOrderId,
+            OrderMemberCodeRequest(null)
+        ).enqueue(object : Callback<OrderMemberCodeResponse> {
+            override fun onResponse(
+                call: Call<OrderMemberCodeResponse>,
+                response: Response<OrderMemberCodeResponse>
+            ) {
+                binding.btnRemoveDiscountSummary.isEnabled = true
+
+                if (response.isSuccessful) {
+                    currentMemberCode = response.body()?.order?.memberCode
+                    loadDetail(currentOrderId)
+                } else {
+                    Toast.makeText(
+                        this@OrderDetailActivity,
+                        getErrorMessage(response),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+
+            override fun onFailure(call: Call<OrderMemberCodeResponse>, t: Throwable) {
+                binding.btnRemoveDiscountSummary.isEnabled = true
+                Toast.makeText(
+                    this@OrderDetailActivity,
+                    t.message ?: "Server tidak terjangkau",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        })
     }
 
     private fun getErrorMessage(response: Response<*>): String {
@@ -284,6 +372,8 @@ class OrderDetailActivity : AppCompatActivity() {
 
         binding.txtTotal.text = formatRupiah(s.total)
         currentTotalAmount = s.total
+        currentDiscountAmount = s.discountTotal
+        updateDiscountSummary()
     }
 
     private fun addSummaryRow(label: String, value: String, isDiscount: Boolean) {

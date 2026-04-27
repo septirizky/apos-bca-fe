@@ -48,6 +48,7 @@ class OrdersActivity : AppCompatActivity() {
 
         // Setup Header
         val userName = intent.getStringExtra("U_NAME") ?: "Admin User"
+        val userId = intent.getIntExtra("U_ID", 0)
         binding.globalHeader.headerUserSection.visibility = View.VISIBLE
         binding.globalHeader.headerUserName.text = userName
         
@@ -65,6 +66,7 @@ class OrdersActivity : AppCompatActivity() {
                 val intent = Intent(this, OrderDetailActivity::class.java)
                 intent.putExtra("ORDER_ID", order.oId)
                 intent.putExtra("U_NAME", userName)
+                intent.putExtra("U_ID", userId)
                 startActivity(intent)
             }
         }

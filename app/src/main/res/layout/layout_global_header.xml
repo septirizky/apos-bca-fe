@@ -9,6 +9,17 @@
     android:orientation="horizontal"
     android:paddingHorizontal="16dp">
 
+    <TextView
+        android:id="@+id/headerBackButton"
+        android:layout_width="36dp"
+        android:layout_height="40dp"
+        android:gravity="center"
+        android:text="&lt;"
+        android:textColor="#0F172A"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
     <!-- LEFT SIDE: BRANCH INFO -->
     <LinearLayout
         android:layout_width="0dp"

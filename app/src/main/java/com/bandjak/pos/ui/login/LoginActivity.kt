@@ -161,6 +161,7 @@ class LoginActivity : AppCompatActivity() {
                     val user = response.body()?.user
                     val intent = Intent(this@LoginActivity, OrdersActivity::class.java)
                     intent.putExtra("U_NAME", user?.uName)
+                    intent.putExtra("U_ID", user?.uId ?: 0)
                     startActivity(intent)
                     finish()
                 } else {

@@ -2,6 +2,10 @@
 
     <uses-permission android:name="android.permission.INTERNET"/>
 
+    <queries>
+        <package android:name="com.bca.apos" />
+    </queries>
+
     <application
         android:usesCleartextTraffic="true"
         android:label="APOS BANDJAK"
@@ -25,6 +29,10 @@
         <!-- Order Detail -->
         <activity
             android:name="com.bandjak.pos.ui.orders.OrderDetailActivity"/>
+
+        <!-- Payment -->
+        <activity
+            android:name="com.bandjak.pos.ui.orders.PaymentActivity"/>
 
         <!-- Down Payment -->
         <activity
