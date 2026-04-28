@@ -22,6 +22,10 @@
 
         </activity>
 
+        <!-- API Settings -->
+        <activity
+            android:name="com.bandjak.pos.ui.settings.ApiSettingsActivity"/>
+
         <!-- Orders list -->
         <activity
             android:name="com.bandjak.pos.ui.orders.OrdersActivity"/>

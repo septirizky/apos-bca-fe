@@ -9,15 +9,15 @@
     android:orientation="horizontal"
     android:paddingHorizontal="16dp">
 
-    <TextView
+    <ImageButton
         android:id="@+id/headerBackButton"
         android:layout_width="36dp"
         android:layout_height="40dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Back"
         android:gravity="center"
-        android:text="&lt;"
-        android:textColor="#0F172A"
-        android:textSize="24sp"
-        android:textStyle="bold"
+        android:padding="8dp"
+        android:src="@drawable/ic_arrow_back"
         android:visibility="gone" />
 
     <!-- LEFT SIDE: BRANCH INFO -->
@@ -38,6 +38,17 @@
     </LinearLayout>
 
     <!-- RIGHT SIDE: USER INFO -->
+    <ImageButton
+        android:id="@+id/headerSettingsButton"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Settings"
+        android:padding="8dp"
+        android:src="@drawable/ic_settings"
+        android:visibility="gone"
+        app:tint="#1A0DAB" />
+
     <LinearLayout
         android:id="@+id/headerUserSection"
         android:layout_width="wrap_content"

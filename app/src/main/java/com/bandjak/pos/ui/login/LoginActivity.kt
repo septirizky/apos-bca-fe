@@ -14,6 +14,7 @@ import com.bandjak.pos.model.BranchNameResponse
 import com.bandjak.pos.model.DatabaseStatusResponse
 import com.bandjak.pos.realtime.PosRealtimeSocket
 import com.bandjak.pos.ui.orders.OrdersActivity
+import com.bandjak.pos.ui.settings.ApiSettingsActivity
 import com.bandjak.pos.util.AutoRefreshTimer
 import retrofit2.Call
 import retrofit2.Callback
@@ -36,11 +37,16 @@ class LoginActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ApiClient.init(applicationContext)
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         // Sembunyikan User Section di halaman Login
         binding.globalHeader.headerUserSection.visibility = View.GONE
+        binding.globalHeader.headerSettingsButton.visibility = View.VISIBLE
+        binding.globalHeader.headerSettingsButton.setOnClickListener {
+            startActivity(Intent(this, ApiSettingsActivity::class.java))
+        }
 
         setupNumericKeypad()
         checkDatabaseStatus()

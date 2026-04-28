@@ -43,6 +43,7 @@ class OrdersActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ApiClient.init(applicationContext)
         binding = ActivityOrdersBinding.inflate(layoutInflater)
         setContentView(binding.root)
 

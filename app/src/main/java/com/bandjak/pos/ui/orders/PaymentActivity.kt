@@ -78,6 +78,7 @@ class PaymentActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ApiClient.init(applicationContext)
         binding = ActivityPaymentBinding.inflate(layoutInflater)
         setContentView(binding.root)
 

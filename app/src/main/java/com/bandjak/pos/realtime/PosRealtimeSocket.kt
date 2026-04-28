@@ -43,7 +43,7 @@ object PosRealtimeSocket {
         reconnectRunnable?.let(mainHandler::removeCallbacks)
 
         val request = Request.Builder()
-            .url(ApiClient.SOCKET_URL)
+            .url(ApiClient.getSocketUrl())
             .build()
 
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
@@ -81,6 +81,13 @@ object PosRealtimeSocket {
         reconnectRunnable = null
         webSocket?.close(1000, "No active listeners")
         webSocket = null
+    }
+
+    fun reconnect() {
+        disconnect()
+        if (listeners.isNotEmpty()) {
+            connect()
+        }
     }
 
     private fun scheduleReconnect() {
