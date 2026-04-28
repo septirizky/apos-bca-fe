@@ -12,6 +12,9 @@ interface PosApi {
     @GET("api/branch-name")
     fun getBranchName(): Call<BranchNameResponse>
 
+    @GET("api/receipt-info")
+    fun getReceiptInfo(): Call<ReceiptInfoResponse>
+
     @POST("api/login-pin")
     fun login(
         @Body body: LoginRequest
@@ -32,6 +35,18 @@ interface PosApi {
         @Body body: OrderMemberCodeRequest
     ): Call<OrderMemberCodeResponse>
 
+    @POST("api/orders/{id}/lock")
+    fun lockOrder(
+        @Path("id") id: Int,
+        @Body body: OrderLockRequest
+    ): Call<OrderLockResponse>
+
+    @POST("api/orders/{id}/unlock")
+    fun unlockOrder(
+        @Path("id") id: Int,
+        @Body body: OrderLockRequest
+    ): Call<OrderLockResponse>
+
     @GET("api/taxes")
     fun getTax(): Call<Tax>
 
@@ -42,6 +57,11 @@ interface PosApi {
     fun validateVoucher(
         @Body body: VoucherValidateRequest
     ): Call<VoucherValidateResponse>
+
+    @POST("api/discounts/validate-member")
+    fun validateDiscountMember(
+        @Body body: DiscountValidateRequest
+    ): Call<DiscountValidateResponse>
 
     @POST("api/payment")
     fun completePayment(

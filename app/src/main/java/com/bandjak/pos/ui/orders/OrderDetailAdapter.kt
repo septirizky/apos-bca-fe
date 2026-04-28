@@ -11,6 +11,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.bandjak.pos.databinding.ItemOrderDetailBinding
+import com.bandjak.pos.model.DiscountDetail
 import com.bandjak.pos.model.OrderDetail
 import java.text.NumberFormat
 import java.util.*
@@ -45,12 +46,27 @@ class OrderDetailAdapter(
         if (!appliedDiscounts.isNullOrEmpty()) {
             holder.binding.discountContainer.visibility = View.VISIBLE
             appliedDiscounts.forEach { disc ->
-                val discView = createDiscountView(holder.itemView.context, disc.dName, disc.discountAmount)
+                val discView = createDiscountView(
+                    holder.itemView.context,
+                    formatDiscountName(disc),
+                    disc.discountAmount
+                )
                 holder.binding.discountContainer.addView(discView)
             }
         } else {
             holder.binding.discountContainer.visibility = View.GONE
         }
+    }
+
+    private fun formatDiscountName(discount: DiscountDetail): String {
+        val percent = discount.ddValue ?: discount.discountPercent.toDouble()
+        val formattedPercent = if (percent % 1.0 == 0.0) {
+            percent.toInt().toString()
+        } else {
+            String.format(Locale.US, "%.2f", percent).trimEnd('0').trimEnd('.')
+        }
+
+        return "${discount.dName} [$formattedPercent%]"
     }
 
     private fun createDiscountView(context: android.content.Context, name: String, amount: Double): View {

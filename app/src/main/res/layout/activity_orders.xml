@@ -3,10 +3,9 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F8FAFC"
+    android:background="#F6F8FC"
     android:orientation="vertical">
 
-    <!-- GLOBAL HEADER -->
     <include
         android:id="@+id/globalHeader"
         layout="@layout/layout_global_header" />
@@ -14,113 +13,149 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="#FFFFFF"
         android:orientation="vertical"
-        android:padding="16dp"
-        android:background="#FFFFFF">
+        android:paddingStart="16dp"
+        android:paddingTop="14dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="16dp">
 
-        <TextView
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="List Active Table Orders"
-            android:textColor="#1E293B"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="12dp"/>
+            android:background="@drawable/bg_orders_summary"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="14dp">
 
-        <!-- MODERN SEARCH BAR -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Active Table Orders"
+                    android:textColor="#0F172A"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/ordersSummaryText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Memuat order..."
+                    android:textColor="#64748B"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/ordersCountChip"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:background="@drawable/bg_orders_count_chip"
+                android:gravity="center"
+                android:minWidth="72dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="0 Meja"
+                android:textColor="#1E00A8"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="48dp"
-            android:background="@android:drawable/editbox_background_normal"
-            android:backgroundTint="#F1F5F9"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_orders_search"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingHorizontal="12dp">
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp">
 
             <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:src="@android:drawable/ic_menu_search"
-                app:tint="#94A3B8"
-                android:contentDescription="Search Icon" />
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:contentDescription="Search"
+                android:src="@drawable/ic_search"
+                app:tint="#94A3B8" />
 
             <EditText
                 android:id="@+id/searchInput"
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
                 android:layout_height="match_parent"
+                android:layout_marginStart="10dp"
+                android:layout_weight="1"
                 android:background="@android:color/transparent"
-                android:hint="Search by Table No, Area, or Section"
-                android:textSize="14sp"
-                android:textColor="#1E293B"
-                android:textColorHint="#94A3B8"
-                android:layout_marginStart="8dp"
+                android:hint="Cari meja, area, atau section"
                 android:imeOptions="actionSearch"
-                android:inputType="text" />
+                android:inputType="text"
+                android:padding="0dp"
+                android:singleLine="true"
+                android:textColor="#0F172A"
+                android:textColorHint="#94A3B8"
+                android:textSize="13sp" />
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Header table (BCA Style) -->
-    <LinearLayout
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="#005BAC"
-        android:orientation="horizontal"
-        android:padding="12dp">
+        android:layout_height="0dp"
+        android:layout_weight="1">
 
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="2.2"
-            android:text="WAKTU"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/ordersRecycler"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingStart="14dp"
+            android:paddingTop="12dp"
+            android:paddingEnd="14dp"
+            android:paddingBottom="18dp" />
 
-        <TextView
-            android:layout_width="0dp"
+        <LinearLayout
+            android:id="@+id/emptyState"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="MEJA"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1.2"
-            android:text="AREA"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="0.8"
+            android:layout_gravity="center"
             android:gravity="center"
-            android:text="PAX"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:orientation="vertical"
+            android:padding="28dp"
+            android:visibility="gone">
 
-        <!-- New column for Lock -->
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="0.5"
-            android:gravity="center"
-            android:text="L"
-            android:textColor="#FFFFFF"
-            android:textSize="12sp"
-            android:textStyle="bold" />
-    </LinearLayout>
+            <TextView
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:background="@drawable/bg_orders_empty_icon"
+                android:gravity="center"
+                android:text="0"
+                android:textColor="#1E00A8"
+                android:textSize="22sp"
+                android:textStyle="bold" />
 
-    <!-- List -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/ordersRecycler"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="#FFFFFF" />
+            <TextView
+                android:id="@+id/emptyStateTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:text="Tidak ada order"
+                android:textColor="#0F172A"
+                android:textSize="16sp"
+                android:textStyle="bold" />
 
+            <TextView
+                android:id="@+id/emptyStateMessage"
+                android:layout_width="260dp"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:gravity="center"
+                android:text="Order aktif akan muncul di sini."
+                android:textColor="#64748B"
+                android:textSize="13sp" />
+        </LinearLayout>
+    </FrameLayout>
 </LinearLayout>

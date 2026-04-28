@@ -3,13 +3,19 @@ package com.bandjak.pos.ui.orders
 import android.app.Dialog
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.SharedPreferences
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
+import android.text.Editable
+import android.text.TextUtils
+import android.text.TextWatcher
 import android.view.View
+import android.view.ViewGroup
 import android.view.Window
 import android.widget.Button
 import android.widget.EditText
@@ -28,12 +34,17 @@ import com.bandjak.pos.apos.AposManager
 import com.bandjak.pos.apos.DeepLinkEncryptionUtil
 import com.bandjak.pos.databinding.ActivityPaymentBinding
 import com.bandjak.pos.model.BranchNameResponse
+import com.bandjak.pos.model.DiscountValidateRequest
+import com.bandjak.pos.model.DiscountValidateResponse
 import com.bandjak.pos.model.DownPayment
 import com.bandjak.pos.model.OrderDetailResponse
+import com.bandjak.pos.model.OrderLockRequest
+import com.bandjak.pos.model.OrderLockResponse
 import com.bandjak.pos.model.OrderMemberCodeRequest
 import com.bandjak.pos.model.OrderMemberCodeResponse
 import com.bandjak.pos.model.PaymentRequest
 import com.bandjak.pos.model.PaymentResponse
+import com.bandjak.pos.model.ReceiptInfoResponse
 import com.bandjak.pos.model.Voucher
 import com.bandjak.pos.model.VoucherValidateRequest
 import com.bandjak.pos.model.VoucherValidateResponse
@@ -45,6 +56,8 @@ import org.json.JSONObject
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
+import java.net.Inet4Address
+import java.net.NetworkInterface
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -56,12 +69,14 @@ class PaymentActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityPaymentBinding
     private lateinit var aposManager: AposManager
+    private lateinit var voucherPrefs: SharedPreferences
 
     private var orderId = 0
     private var itemSaleId = 0
     private var itemSaleCounter = 0
     private var userId = 0
     private var userName: String? = null
+    private var waiterName: String? = null
     private var tableName = "-"
     private var memberCode: String? = null
     private var totalAmount = 0.0
@@ -73,7 +88,10 @@ class PaymentActivity : AppCompatActivity() {
     private var selectedFeatureType: FeatureType? = null
     private var pendingPartnerRefId: String? = null
     private var didLaunchApos = false
+    private var isCompletingPayment = false
+    private var lastActionClickAt = 0L
     private var currentBranchName = "BANDAR DJAKARTA"
+    private var receiptInfoLines = listOf<String>()
     private var currentOrderDetail: OrderDetailResponse? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -87,10 +105,13 @@ class PaymentActivity : AppCompatActivity() {
         itemSaleCounter = intent.getIntExtra("IS_COUNTER", 0)
         userId = intent.getIntExtra("U_ID", 0)
         userName = intent.getStringExtra("U_NAME")
+        waiterName = intent.getStringExtra("WAITER_NAME")
         tableName = intent.getStringExtra("TABLE_NAME") ?: "-"
         memberCode = intent.getStringExtra("MEMBER_CODE")
         totalAmount = intent.getDoubleExtra("TOTAL_AMOUNT", 0.0)
         discountAmount = intent.getDoubleExtra("DISCOUNT_AMOUNT", 0.0)
+        voucherPrefs = getSharedPreferences(VOUCHER_PREFS_NAME, MODE_PRIVATE)
+        restoreVoucherState()
 
         aposManager = AposManager(applicationContext)
         aposManager.connect()
@@ -123,14 +144,23 @@ class PaymentActivity : AppCompatActivity() {
     }
 
     private fun setupActions() {
-        binding.btnDownPayment.setOnClickListener { showDownPaymentDialog() }
-        binding.btnDiscount.setOnClickListener { showDiscountDialog() }
-        binding.btnVoucher.setOnClickListener { showVoucherDialog() }
-        binding.btnPaymentMethod.setOnClickListener { showPaymentMethodDialog() }
-        binding.btnPreviewReceipt.setOnClickListener {
+        binding.btnDownPayment.setSafeClickListener { showDownPaymentDialog() }
+        binding.btnDiscount.setSafeClickListener { showDiscountDialog() }
+        binding.btnVoucher.setSafeClickListener { showVoucherDialog() }
+        binding.btnPaymentMethod.setSafeClickListener { showPaymentMethodDialog() }
+        binding.btnPreviewReceipt.setSafeClickListener {
             showReceiptPreview()
         }
-        binding.btnCompletePayment.setOnClickListener { completePayment() }
+        binding.btnCompletePayment.setSafeClickListener { completePayment() }
+    }
+
+    private fun View.setSafeClickListener(onClick: (View) -> Unit) {
+        setOnClickListener { view ->
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastActionClickAt < 700L) return@setOnClickListener
+            lastActionClickAt = now
+            onClick(view)
+        }
     }
 
     private fun setupHeader() {
@@ -143,6 +173,7 @@ class PaymentActivity : AppCompatActivity() {
         }
         updateHeaderDateTime()
         loadBranchName()
+        loadReceiptInfo()
     }
 
     private fun updateHeaderDateTime() {
@@ -162,6 +193,25 @@ class PaymentActivity : AppCompatActivity() {
             override fun onFailure(call: Call<BranchNameResponse>, t: Throwable) {
                 binding.globalHeader.headerBranchName.text = "BANDAR DJAKARTA"
                 currentBranchName = "BANDAR DJAKARTA"
+            }
+        })
+    }
+
+    private fun loadReceiptInfo() {
+        ApiClient.api.getReceiptInfo().enqueue(object : Callback<ReceiptInfoResponse> {
+            override fun onResponse(call: Call<ReceiptInfoResponse>, response: Response<ReceiptInfoResponse>) {
+                if (!response.isSuccessful) return
+
+                val info = response.body() ?: return
+                receiptInfoLines = listOfNotNull(
+                    info.info1?.takeIf { it.isNotBlank() },
+                    info.info2?.takeIf { it.isNotBlank() },
+                    info.info3?.takeIf { it.isNotBlank() }
+                )
+            }
+
+            override fun onFailure(call: Call<ReceiptInfoResponse>, t: Throwable) {
+                receiptInfoLines = emptyList()
             }
         })
     }
@@ -189,6 +239,7 @@ class PaymentActivity : AppCompatActivity() {
                 itemSaleId = data.itemSaleId ?: itemSaleId
                 itemSaleCounter = data.nextItemSaleCounter ?: itemSaleCounter
                 tableName = data.tName ?: tableName
+                waiterName = data.waiterName ?: waiterName
                 memberCode = data.memberCode
                 totalAmount = data.summary.total
                 discountAmount = data.summary.discountTotal
@@ -284,7 +335,7 @@ class PaymentActivity : AppCompatActivity() {
             )
         })
         paper.addView(TextView(this).apply {
-            text = "Jl. Pantai Indah Kapuk, Jakarta Utara\nTelp: (021) 555-0123"
+            text = receiptInfoLines.joinToString("\n")
             textSize = 11f
             setTextColor(Color.parseColor("#94A3B8"))
             gravity = android.view.Gravity.CENTER
@@ -298,7 +349,7 @@ class PaymentActivity : AppCompatActivity() {
 
         val timestamp = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.ENGLISH).format(Date())
         paper.addView(receiptInfoRow("ORDER #${transactionId()} | TABLE $tableName", timestamp))
-        paper.addView(receiptInfoRow("CASHIER: ${userName ?: "-"}", ""))
+        paper.addView(receiptInfoRow("WAITER: ${waiterName ?: "-"}", "CASHIER: ${userName ?: "-"}"))
         paper.addView(receiptDivider())
 
         data.items.forEach { item ->
@@ -468,12 +519,31 @@ class PaymentActivity : AppCompatActivity() {
         binding.txtTotalBill.text = formatRupiah(totalAmount)
         binding.txtPaid.text = formatRupiah(paid)
         binding.txtRemaining.text = formatRupiah(remaining)
-        binding.btnCompletePayment.text = if (remaining > 0) {
-            "Selesaikan Pembayaran ${formatRupiah(remaining)}"
-        } else {
-            "Selesaikan Pembayaran"
-        }
+        binding.btnCompletePayment.text = "Selesaikan Pembayaran"
+        renderDownPaymentButton()
         renderAppliedSummary()
+    }
+
+    private fun renderDownPaymentButton() {
+        val downPayment = selectedDownPayment
+        if (downPayment == null) {
+            binding.btnDownPayment.text = "DOWNPAYMENT"
+            binding.btnDownPayment.maxLines = 1
+            binding.btnDownPayment.ellipsize = TextUtils.TruncateAt.END
+            binding.btnDownPayment.textSize = 9f
+            binding.btnDownPayment.icon = getDrawable(R.drawable.ic_downpayment)
+            binding.btnDownPayment.iconGravity = com.google.android.material.button.MaterialButton.ICON_GRAVITY_TOP
+            binding.btnDownPayment.iconPadding = dp(4)
+            return
+        }
+
+        val title = downPayment.name.trim().ifBlank { "Downpayment" }
+        val contact = downPayment.contact?.trim().orEmpty()
+        binding.btnDownPayment.text = if (contact.isBlank()) title else "$title\n$contact"
+        binding.btnDownPayment.maxLines = 2
+        binding.btnDownPayment.ellipsize = TextUtils.TruncateAt.END
+        binding.btnDownPayment.textSize = 9f
+        binding.btnDownPayment.icon = null
     }
 
     private fun renderDiscountButton() {
@@ -501,29 +571,219 @@ class PaymentActivity : AppCompatActivity() {
                     return
                 }
 
-                val labels = downPayments.map { "${it.name} - ${formatRupiah(it.amount.toDoubleOrNull() ?: 0.0)}" }
-                    .toTypedArray()
-                AlertDialog.Builder(this@PaymentActivity)
-                    .setTitle("Pilih Downpayment")
-                    .setItems(labels) { dialog, which ->
-                        selectedDownPayment = downPayments[which]
-                        binding.btnDownPayment.text = "DP\n${formatRupiah(selectedDownPayment?.amount?.toDoubleOrNull() ?: 0.0)}"
-                        renderTotals()
-                        dialog.dismiss()
-                    }
-                    .setNegativeButton("Hapus") { dialog, _ ->
-                        selectedDownPayment = null
-                        binding.btnDownPayment.text = "DOWNPAYMENT"
-                        renderTotals()
-                        dialog.dismiss()
-                    }
-                    .show()
+                showDownPaymentPicker(downPayments)
             }
 
             override fun onFailure(call: Call<List<DownPayment>>, t: Throwable) {
                 Toast.makeText(this@PaymentActivity, t.message ?: "Gagal memuat downpayment", Toast.LENGTH_SHORT).show()
             }
         })
+    }
+
+    private fun showDownPaymentPicker(downPayments: List<DownPayment>) {
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.WHITE)
+            setPadding(dp(18), dp(16), dp(18), dp(12))
+        }
+
+        root.addView(TextView(this).apply {
+            text = "Pilih Downpayment"
+            textSize = 19f
+            setTextColor(Color.parseColor("#0F172A"))
+            setTypeface(Typeface.DEFAULT_BOLD)
+        })
+        root.addView(TextView(this).apply {
+            text = "Cari berdasarkan nama atau kontak tamu"
+            textSize = 12f
+            setTextColor(Color.parseColor("#64748B"))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(0, dp(3), 0, dp(12))
+            }
+        })
+
+        val searchInput = EditText(this).apply {
+            hint = "Cari nama / kontak..."
+            setSingleLine(true)
+            textSize = 14f
+            setTextColor(Color.parseColor("#0F172A"))
+            setHintTextColor(Color.parseColor("#94A3B8"))
+            setBackgroundResource(R.drawable.bg_down_payment_search)
+            setPadding(dp(14), 0, dp(14), 0)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(46)
+            )
+        }
+        root.addView(searchInput)
+
+        val scroll = ScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+            ).apply {
+                setMargins(0, dp(12), 0, dp(10))
+            }
+        }
+        val listContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+        val emptyView = TextView(this).apply {
+            text = "Downpayment tidak ditemukan"
+            textSize = 13f
+            setTextColor(Color.parseColor("#94A3B8"))
+            gravity = android.view.Gravity.CENTER
+            setPadding(0, dp(28), 0, dp(28))
+            visibility = View.GONE
+        }
+        scroll.addView(listContainer)
+        root.addView(scroll)
+        root.addView(emptyView)
+
+        val actionRow = LinearLayout(this).apply {
+            gravity = android.view.Gravity.CENTER_VERTICAL or android.view.Gravity.END
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+        val removeButton = TextView(this).apply {
+            text = "HAPUS"
+            textSize = 13f
+            setTextColor(Color.parseColor("#E11D48"))
+            setTypeface(Typeface.DEFAULT_BOLD)
+            gravity = android.view.Gravity.CENTER
+            setPadding(dp(14), dp(10), dp(14), dp(10))
+            visibility = if (selectedDownPayment == null) View.GONE else View.VISIBLE
+            setOnClickListener {
+                selectedDownPayment = null
+                renderTotals()
+                dialog.dismiss()
+            }
+        }
+        val cancelButton = TextView(this).apply {
+            text = "TUTUP"
+            textSize = 13f
+            setTextColor(Color.parseColor("#1A05A3"))
+            setTypeface(Typeface.DEFAULT_BOLD)
+            gravity = android.view.Gravity.CENTER
+            setPadding(dp(14), dp(10), dp(4), dp(10))
+            setOnClickListener { dialog.dismiss() }
+        }
+        actionRow.addView(removeButton)
+        actionRow.addView(cancelButton)
+        root.addView(actionRow)
+
+        fun render(keyword: String = "") {
+            val filtered = if (keyword.isBlank()) {
+                downPayments
+            } else {
+                val needle = keyword.lowercase(Locale.ROOT)
+                downPayments.filter {
+                    it.name.lowercase(Locale.ROOT).contains(needle) ||
+                        it.contact.orEmpty().lowercase(Locale.ROOT).contains(needle)
+                }
+            }
+
+            listContainer.removeAllViews()
+            emptyView.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
+            scroll.visibility = if (filtered.isEmpty()) View.GONE else View.VISIBLE
+
+            filtered.forEach { downPayment ->
+                listContainer.addView(createDownPaymentRow(downPayment, dialog))
+            }
+        }
+
+        searchInput.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
+                render(s?.toString().orEmpty())
+            }
+
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+        })
+
+        render()
+
+        dialog.setContentView(root)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.show()
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.92f).toInt(),
+            (resources.displayMetrics.heightPixels * 0.78f).toInt()
+        )
+    }
+
+    private fun createDownPaymentRow(downPayment: DownPayment, dialog: Dialog): View {
+        val isSelected = selectedDownPayment?.id != null && selectedDownPayment?.id == downPayment.id
+        val amount = downPayment.amount.toDoubleOrNull() ?: 0.0
+
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setBackgroundResource(
+                if (isSelected) R.drawable.bg_down_payment_row_selected else R.drawable.bg_down_payment_row
+            )
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(0, 0, 0, dp(8))
+            }
+            setOnClickListener {
+                selectedDownPayment = downPayment
+                renderTotals()
+                dialog.dismiss()
+            }
+
+            val textGroup = LinearLayout(this@PaymentActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    setMargins(0, 0, dp(10), 0)
+                }
+            }
+            textGroup.addView(TextView(this@PaymentActivity).apply {
+                text = downPayment.name
+                textSize = 14f
+                setTextColor(Color.parseColor("#0F172A"))
+                setTypeface(Typeface.DEFAULT_BOLD)
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            })
+            textGroup.addView(TextView(this@PaymentActivity).apply {
+                text = downPayment.contact?.takeIf { it.isNotBlank() } ?: "Kontak tidak tersedia"
+                textSize = 11f
+                setTextColor(Color.parseColor("#64748B"))
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            })
+
+            addView(textGroup)
+            addView(TextView(this@PaymentActivity).apply {
+                text = formatRupiah(amount)
+                textSize = 13f
+                setTextColor(Color.parseColor(if (isSelected) "#1A05A3" else "#334155"))
+                setTypeface(Typeface.DEFAULT_BOLD)
+                gravity = android.view.Gravity.END
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            })
+        }
     }
 
     private fun showDiscountDialog() {
@@ -536,24 +796,118 @@ class PaymentActivity : AppCompatActivity() {
         val editCode = dialog.findViewById<EditText>(R.id.editDiscountCode)
         val btnCancel = dialog.findViewById<Button>(R.id.btnCancel)
         val btnRemove = dialog.findViewById<Button>(R.id.btnRemove)
+        val btnCheck = dialog.findViewById<Button>(R.id.btnCheckDiscount)
         val btnApply = dialog.findViewById<Button>(R.id.btnApply)
+        val infoCard = dialog.findViewById<LinearLayout>(R.id.discountInfoCard)
+        val txtMember = dialog.findViewById<TextView>(R.id.txtDiscountMember)
+        val txtName = dialog.findViewById<TextView>(R.id.txtDiscountName)
+        var validatedCode: String? = null
 
         editCode.setText(memberCode.orEmpty())
         editCode.setSelection(editCode.text.length)
         btnRemove.visibility = if (memberCode.isNullOrBlank()) android.view.View.GONE else android.view.View.VISIBLE
+        btnApply.isEnabled = false
+
+        editCode.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
+                validatedCode = null
+                btnApply.isEnabled = false
+                infoCard.visibility = View.GONE
+            }
+
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+        })
 
         btnCancel.setOnClickListener { dialog.dismiss() }
         btnRemove.setOnClickListener { applyMemberCode(dialog, btnRemove, null) }
-        btnApply.setOnClickListener {
+        btnCheck.setOnClickListener {
             val code = editCode.text.toString().trim()
             if (code.isBlank()) {
-                Toast.makeText(this, "Masukkan kode terlebih dahulu", Toast.LENGTH_SHORT).show()
+                showDiscountInfo(infoCard, txtMember, txtName, "Kode diskon belum diisi", "Masukkan kode terlebih dahulu", false)
             } else {
+                validateDiscountMember(
+                    code = code,
+                    actionButton = btnCheck,
+                    onValid = { result ->
+                        validatedCode = code
+                        btnApply.isEnabled = true
+                        val member = result.member
+                        val discount = result.discounts.firstOrNull()
+                        showDiscountInfo(
+                            infoCard,
+                            txtMember,
+                            txtName,
+                            "Member: ${member?.name ?: code}",
+                            "Diskon: ${discount?.name ?: "-"}",
+                            true
+                        )
+                    },
+                    onInvalid = { message ->
+                        validatedCode = null
+                        btnApply.isEnabled = false
+                        showDiscountInfo(infoCard, txtMember, txtName, "Diskon tidak ditemukan", message, false)
+                    }
+                )
+            }
+        }
+        btnApply.setOnClickListener {
+            val code = editCode.text.toString().trim()
+            if (validatedCode == code) {
                 applyMemberCode(dialog, btnApply, code)
+            } else {
+                showDiscountInfo(infoCard, txtMember, txtName, "Cek diskon terlebih dahulu", "Tekan tombol Cek Diskon sebelum menerapkan", false)
             }
         }
 
         dialog.show()
+    }
+
+    private fun validateDiscountMember(
+        code: String,
+        actionButton: Button,
+        onValid: (DiscountValidateResponse) -> Unit,
+        onInvalid: (String) -> Unit
+    ) {
+        actionButton.isEnabled = false
+        ApiClient.api.validateDiscountMember(DiscountValidateRequest(code))
+            .enqueue(object : Callback<DiscountValidateResponse> {
+                override fun onResponse(
+                    call: Call<DiscountValidateResponse>,
+                    response: Response<DiscountValidateResponse>
+                ) {
+                    actionButton.isEnabled = true
+                    val body = response.body()
+                    if (response.isSuccessful && body != null) {
+                        onValid(body)
+                    } else {
+                        onInvalid(getErrorMessage(response))
+                    }
+                }
+
+                override fun onFailure(call: Call<DiscountValidateResponse>, t: Throwable) {
+                    actionButton.isEnabled = true
+                    onInvalid(t.message ?: "Gagal validasi diskon")
+                }
+            })
+    }
+
+    private fun showDiscountInfo(
+        infoCard: LinearLayout,
+        titleView: TextView,
+        subtitleView: TextView,
+        title: String,
+        subtitle: String,
+        success: Boolean
+    ) {
+        infoCard.visibility = View.VISIBLE
+        infoCard.setBackgroundResource(
+            if (success) R.drawable.bg_dialog_info_success else R.drawable.bg_dialog_info_error
+        )
+        titleView.text = title
+        titleView.setTextColor(Color.parseColor(if (success) "#0F172A" else "#E11D48"))
+        subtitleView.text = subtitle
+        subtitleView.setTextColor(Color.parseColor("#64748B"))
     }
 
     private fun applyMemberCode(dialog: Dialog, actionButton: Button, code: String?) {
@@ -591,23 +945,76 @@ class PaymentActivity : AppCompatActivity() {
         val editCode = dialog.findViewById<EditText>(R.id.editVoucherCode)
         val btnCancel = dialog.findViewById<Button>(R.id.btnCancelVoucher)
         val btnRemove = dialog.findViewById<Button>(R.id.btnRemoveVoucher)
+        val btnCheck = dialog.findViewById<Button>(R.id.btnCheckVoucher)
         val btnApply = dialog.findViewById<Button>(R.id.btnApplyVoucher)
+        val infoCard = dialog.findViewById<LinearLayout>(R.id.voucherInfoCard)
+        val txtGroup = dialog.findViewById<TextView>(R.id.txtVoucherGroup)
+        val txtStatus = dialog.findViewById<TextView>(R.id.txtVoucherStatus)
+        val txtPeriod = dialog.findViewById<TextView>(R.id.txtVoucherPeriod)
+        val txtValue = dialog.findViewById<TextView>(R.id.txtVoucherValue)
+        var checkedVoucher: Voucher? = null
 
         editCode.setText(voucherCode.orEmpty())
         editCode.setSelection(editCode.text.length)
         btnRemove.visibility = if (voucherCode.isNullOrBlank()) android.view.View.GONE else android.view.View.VISIBLE
+        btnApply.isEnabled = false
+
+        editCode.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
+                checkedVoucher = null
+                btnApply.isEnabled = false
+                infoCard.visibility = View.GONE
+            }
+
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+        })
 
         btnCancel.setOnClickListener { dialog.dismiss() }
         btnRemove.setOnClickListener {
             clearVoucher()
             dialog.dismiss()
         }
-        btnApply.setOnClickListener {
+        btnCheck.setOnClickListener {
             val code = editCode.text.toString().trim()
             if (code.isBlank()) {
-                Toast.makeText(this, "Masukkan kode voucher", Toast.LENGTH_SHORT).show()
+                showVoucherInfo(infoCard, txtGroup, txtStatus, txtPeriod, txtValue, "Kode voucher belum diisi", "Masukkan kode voucher", "-", "-", false)
             } else {
-                validateVoucher(code, allowExpired = false, dialog = dialog, actionButton = btnApply)
+                validateVoucher(
+                    code = code,
+                    allowExpired = false,
+                    actionButton = btnCheck,
+                    onValid = { voucher ->
+                        checkedVoucher = voucher
+                        btnApply.isEnabled = true
+                        showVoucherInfo(
+                            infoCard,
+                            txtGroup,
+                            txtStatus,
+                            txtPeriod,
+                            txtValue,
+                            "Kelompok: ${voucher.setName ?: "-"}",
+                            "Status: ${voucher.status ?: "-"}${if (voucher.expired) " (Expired)" else ""}",
+                            "Berlaku: ${voucher.startDate ?: "-"} s/d ${voucher.endDate ?: "-"}",
+                            formatRupiah(voucher.nominal),
+                            true
+                        )
+                    },
+                    onInvalid = { message ->
+                        checkedVoucher = null
+                        btnApply.isEnabled = false
+                        showVoucherInfo(infoCard, txtGroup, txtStatus, txtPeriod, txtValue, "Voucher tidak ditemukan", message, "-", "-", false)
+                    }
+                )
+            }
+        }
+        btnApply.setOnClickListener {
+            val voucher = checkedVoucher
+            if (voucher == null) {
+                showVoucherInfo(infoCard, txtGroup, txtStatus, txtPeriod, txtValue, "Cek voucher terlebih dahulu", "Tekan tombol Cek Voucher sebelum menerapkan", "-", "-", false)
+            } else {
+                applyVoucher(voucher)
+                dialog.dismiss()
             }
         }
 
@@ -617,8 +1024,9 @@ class PaymentActivity : AppCompatActivity() {
     private fun validateVoucher(
         code: String,
         allowExpired: Boolean,
-        dialog: Dialog,
-        actionButton: Button
+        actionButton: Button,
+        onValid: (Voucher) -> Unit,
+        onInvalid: (String) -> Unit
     ) {
         actionButton.isEnabled = false
         ApiClient.api.validateVoucher(VoucherValidateRequest(code, allowExpired))
@@ -630,8 +1038,7 @@ class PaymentActivity : AppCompatActivity() {
                     actionButton.isEnabled = true
 
                     if (response.isSuccessful) {
-                        applyVoucher(response.body()?.voucher)
-                        dialog.dismiss()
+                        response.body()?.voucher?.let(onValid)
                         return
                     }
 
@@ -645,20 +1052,44 @@ class PaymentActivity : AppCompatActivity() {
                             .setTitle("Voucher Kadaluarsa")
                             .setMessage("Voucher kadaluarsa apakah akan tetap digunakan?")
                             .setPositiveButton("Ya") { _, _ ->
-                                validateVoucher(code, allowExpired = true, dialog = dialog, actionButton = actionButton)
+                                validateVoucher(code, allowExpired = true, actionButton = actionButton, onValid = onValid, onInvalid = onInvalid)
                             }
                             .setNegativeButton("Tidak", null)
                             .show()
                     } else {
-                        Toast.makeText(this@PaymentActivity, getErrorMessage(rawError), Toast.LENGTH_SHORT).show()
+                        onInvalid(getErrorMessage(rawError))
                     }
                 }
 
                 override fun onFailure(call: Call<VoucherValidateResponse>, t: Throwable) {
                     actionButton.isEnabled = true
-                    Toast.makeText(this@PaymentActivity, t.message ?: "Gagal validasi voucher", Toast.LENGTH_SHORT).show()
+                    onInvalid(t.message ?: "Gagal validasi voucher")
                 }
             })
+    }
+
+    private fun showVoucherInfo(
+        infoCard: LinearLayout,
+        groupView: TextView,
+        statusView: TextView,
+        periodView: TextView,
+        valueView: TextView,
+        group: String,
+        status: String,
+        period: String,
+        value: String,
+        success: Boolean
+    ) {
+        infoCard.visibility = View.VISIBLE
+        infoCard.setBackgroundResource(
+            if (success) R.drawable.bg_down_payment_row_selected else R.drawable.bg_dialog_info_error
+        )
+        groupView.text = group
+        groupView.setTextColor(Color.parseColor(if (success) "#0F172A" else "#E11D48"))
+        statusView.text = status
+        periodView.text = period
+        valueView.text = value
+        valueView.visibility = if (success) View.VISIBLE else View.GONE
     }
 
     private fun applyVoucher(voucher: Voucher?) {
@@ -670,6 +1101,7 @@ class PaymentActivity : AppCompatActivity() {
         selectedVoucherId = voucher.id
         voucherCode = voucher.code
         voucherAmount = voucher.nominal
+        persistVoucherState()
         binding.btnVoucher.text = "VOUCHER"
         renderTotals()
     }
@@ -678,15 +1110,51 @@ class PaymentActivity : AppCompatActivity() {
         selectedVoucherId = null
         voucherCode = null
         voucherAmount = 0.0
+        clearPersistedVoucherState()
         binding.btnVoucher.text = "VOUCHER"
         renderTotals()
     }
 
+    private fun restoreVoucherState() {
+        selectedVoucherId = voucherPrefs.getInt(voucherPrefKey("id"), 0).takeIf { it > 0 }
+        voucherCode = voucherPrefs.getString(voucherPrefKey("code"), null)
+        voucherAmount = Double.fromBits(voucherPrefs.getLong(voucherPrefKey("amount"), 0L))
+
+        if (voucherCode.isNullOrBlank() || voucherAmount <= 0.0) {
+            selectedVoucherId = null
+            voucherCode = null
+            voucherAmount = 0.0
+        }
+    }
+
+    private fun persistVoucherState() {
+        voucherPrefs.edit()
+            .putInt(voucherPrefKey("id"), selectedVoucherId ?: 0)
+            .putString(voucherPrefKey("code"), voucherCode)
+            .putLong(voucherPrefKey("amount"), voucherAmount.toBits())
+            .apply()
+    }
+
+    private fun clearPersistedVoucherState() {
+        voucherPrefs.edit()
+            .remove(voucherPrefKey("id"))
+            .remove(voucherPrefKey("code"))
+            .remove(voucherPrefKey("amount"))
+            .apply()
+    }
+
+    private fun voucherPrefKey(field: String): String = "order_${orderId}_voucher_$field"
+
     private fun showPaymentMethodDialog() {
         val methods = arrayOf("Card", "QRIS")
+        val checkedIndex = when (selectedFeatureType) {
+            FeatureType.CARD -> 0
+            FeatureType.QRIS -> 1
+            else -> -1
+        }
         AlertDialog.Builder(this)
             .setTitle("Metode Pembayaran")
-            .setSingleChoiceItems(methods, if (selectedFeatureType == FeatureType.QRIS) 1 else 0) { dialog, which ->
+            .setSingleChoiceItems(methods, checkedIndex) { dialog, which ->
                 selectedFeatureType = if (which == 0) FeatureType.CARD else FeatureType.QRIS
                 binding.btnPaymentMethod.text = methods[which]
                 renderAppliedSummary()
@@ -834,6 +1302,8 @@ class PaymentActivity : AppCompatActivity() {
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     private fun completePayment() {
+        if (isCompletingPayment) return
+
         if (orderId == 0 || itemSaleId == 0) {
             Toast.makeText(this, "Data transaksi tidak lengkap", Toast.LENGTH_SHORT).show()
             return
@@ -855,9 +1325,14 @@ class PaymentActivity : AppCompatActivity() {
     }
 
     private fun launchAposPayment(featureType: FeatureType, amount: Long) {
+        isCompletingPayment = true
+        binding.btnCompletePayment.isEnabled = false
+
         val service = aposManager.aposService
         if (service == null) {
             aposManager.connect()
+            isCompletingPayment = false
+            binding.btnCompletePayment.isEnabled = true
             Toast.makeText(this, "Service APOS belum terhubung, coba lagi sebentar", Toast.LENGTH_SHORT).show()
             return
         }
@@ -866,14 +1341,20 @@ class PaymentActivity : AppCompatActivity() {
         when (aposState) {
             APOS_READY_STATE -> Unit
             SETTLEMENT_REQUIRED_STATE -> {
+                isCompletingPayment = false
+                binding.btnCompletePayment.isEnabled = true
                 Toast.makeText(this, "APOS meminta settlement sebelum transaksi", Toast.LENGTH_LONG).show()
                 return
             }
             APOS_INACTIVE_STATE -> {
+                isCompletingPayment = false
+                binding.btnCompletePayment.isEnabled = true
                 Toast.makeText(this, "APOS sedang tidak aktif", Toast.LENGTH_SHORT).show()
                 return
             }
             else -> {
+                isCompletingPayment = false
+                binding.btnCompletePayment.isEnabled = true
                 Toast.makeText(this, "Status APOS tidak tersedia", Toast.LENGTH_SHORT).show()
                 return
             }
@@ -896,6 +1377,8 @@ class PaymentActivity : AppCompatActivity() {
             startActivity(intent)
         } catch (e: ActivityNotFoundException) {
             didLaunchApos = false
+            isCompletingPayment = false
+            binding.btnCompletePayment.isEnabled = true
             Toast.makeText(this, "Aplikasi APOS BCA tidak ditemukan", Toast.LENGTH_SHORT).show()
         }
     }
@@ -923,14 +1406,33 @@ class PaymentActivity : AppCompatActivity() {
 
         when (inquiry?.txStatus) {
             TransactionStatus.SUCCESS -> markPaymentCompleted()
-            TransactionStatus.PENDING -> Toast.makeText(this, "Transaksi APOS masih pending", Toast.LENGTH_LONG).show()
-            TransactionStatus.NOT_FOUND -> Toast.makeText(this, "Transaksi APOS belum ditemukan", Toast.LENGTH_LONG).show()
-            else -> Toast.makeText(this, "Transaksi APOS belum berhasil", Toast.LENGTH_LONG).show()
+            TransactionStatus.PENDING -> {
+                isCompletingPayment = false
+                binding.btnCompletePayment.isEnabled = true
+                Toast.makeText(this, "Transaksi APOS masih pending", Toast.LENGTH_LONG).show()
+            }
+            TransactionStatus.NOT_FOUND -> {
+                isCompletingPayment = false
+                binding.btnCompletePayment.isEnabled = true
+                Toast.makeText(this, "Transaksi APOS belum ditemukan", Toast.LENGTH_LONG).show()
+            }
+            else -> {
+                isCompletingPayment = false
+                binding.btnCompletePayment.isEnabled = true
+                Toast.makeText(this, "Transaksi APOS belum berhasil", Toast.LENGTH_LONG).show()
+            }
         }
     }
 
     private fun markPaymentCompleted() {
+        if (isCompletingPayment && binding.btnCompletePayment.isEnabled) {
+            binding.btnCompletePayment.isEnabled = false
+        }
+        isCompletingPayment = true
+
         if (userId == 0) {
+            isCompletingPayment = false
+            binding.btnCompletePayment.isEnabled = true
             Toast.makeText(this, "User ID tidak tersedia untuk menyelesaikan payment", Toast.LENGTH_SHORT).show()
             return
         }
@@ -952,20 +1454,59 @@ class PaymentActivity : AppCompatActivity() {
             )
         ).enqueue(object : Callback<PaymentResponse> {
             override fun onResponse(call: Call<PaymentResponse>, response: Response<PaymentResponse>) {
-                binding.btnCompletePayment.isEnabled = true
                 if (response.isSuccessful) {
+                    clearPersistedVoucherState()
                     Toast.makeText(this@PaymentActivity, "Payment berhasil", Toast.LENGTH_SHORT).show()
-                    finish()
+                    releaseOrderLock {
+                        finish()
+                    }
                 } else {
+                    isCompletingPayment = false
+                    binding.btnCompletePayment.isEnabled = true
                     Toast.makeText(this@PaymentActivity, getErrorMessage(response), Toast.LENGTH_SHORT).show()
                 }
             }
 
             override fun onFailure(call: Call<PaymentResponse>, t: Throwable) {
+                isCompletingPayment = false
                 binding.btnCompletePayment.isEnabled = true
                 Toast.makeText(this@PaymentActivity, t.message ?: "Payment gagal", Toast.LENGTH_SHORT).show()
             }
         })
+    }
+
+    private fun releaseOrderLock(onDone: () -> Unit) {
+        if (orderId == 0 || userId == 0) {
+            onDone()
+            return
+        }
+
+        ApiClient.api.unlockOrder(
+            orderId,
+            OrderLockRequest(
+                userId = userId,
+                posId = ApiClient.getPosId(applicationContext),
+                posIp = localIpAddress()
+            )
+        ).enqueue(object : Callback<OrderLockResponse> {
+            override fun onResponse(call: Call<OrderLockResponse>, response: Response<OrderLockResponse>) {
+                onDone()
+            }
+
+            override fun onFailure(call: Call<OrderLockResponse>, t: Throwable) {
+                Toast.makeText(this@PaymentActivity, "Payment berhasil, tetapi unlock meja gagal", Toast.LENGTH_SHORT).show()
+                onDone()
+            }
+        })
+    }
+
+    private fun localIpAddress(): String? {
+        return runCatching {
+            NetworkInterface.getNetworkInterfaces().asSequence()
+                .flatMap { it.inetAddresses.asSequence() }
+                .firstOrNull { !it.isLoopbackAddress && it is Inet4Address }
+                ?.hostAddress
+        }.getOrNull()
     }
 
     private fun getErrorMessage(response: Response<*>): String {
@@ -1005,5 +1546,6 @@ class PaymentActivity : AppCompatActivity() {
         private const val APOS_READY_STATE = 0
         private const val SETTLEMENT_REQUIRED_STATE = 1
         private const val APOS_INACTIVE_STATE = 2
+        private const val VOUCHER_PREFS_NAME = "payment_voucher_state"
     }
 }

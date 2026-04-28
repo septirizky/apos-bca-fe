@@ -27,7 +27,7 @@
     <!-- SEARCH -->
     <EditText
         android:id="@+id/searchInput"
-        android:hint="Search name..."
+        android:hint="Search name or contact..."
         android:background="#FFFFFF"
         android:padding="12dp"
         android:layout_margin="8dp"

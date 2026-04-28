@@ -11,6 +11,10 @@ data class OrderDetailResponse(
     val nextItemSaleCounter: Int?,
     @SerializedName("t_name")
     val tName: String?,
+    @SerializedName("u_id")
+    val waiterId: Int?,
+    @SerializedName("u_name")
+    val waiterName: String?,
     @SerializedName("m_code")
     val memberCode: String?,
     @SerializedName("items")
@@ -83,6 +87,8 @@ data class OrderDetail(
 data class DiscountDetail(
     @SerializedName("d_name")
     val dName: String,
+    @SerializedName("dd_value")
+    val ddValue: Double?,
     @SerializedName("discount_amount")
     val discountAmount: Double,
     @SerializedName("discount_percent")

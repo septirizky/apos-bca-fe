@@ -35,12 +35,13 @@
                 android:padding="12dp">
 
                 <ImageView
-                    android:id="@+id/statusIcon"
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
-                    android:src="@android:drawable/checkbox_on_background"
-                    android:contentDescription="Status Icon"
-                    app:tint="#10B981" />
+                    android:id="@+id/statusLogo"
+                    android:layout_width="160dp"
+                    android:layout_height="80dp"
+                    android:adjustViewBounds="true"
+                    android:contentDescription="Restaurant Logo"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/bandar_djakarta_login_logo" />
 
                 <TextView
                     android:layout_width="wrap_content"

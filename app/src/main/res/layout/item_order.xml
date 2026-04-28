@@ -3,60 +3,193 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="#FFFFFF"
-    android:gravity="center_vertical"
-    android:orientation="horizontal"
-    android:padding="12dp">
+    android:layout_margin="5dp"
+    android:background="@drawable/bg_order_card"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="?android:attr/selectableItemBackground"
+    android:orientation="vertical"
+    android:padding="10dp">
 
-    <TextView
-        android:id="@+id/orderTime"
-        android:layout_width="0dp"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="2.2"
-        android:textColor="#1E293B"
-        android:textSize="13sp" />
+        android:gravity="top"
+        android:orientation="horizontal">
 
-    <TextView
-        android:id="@+id/orderTable"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:textColor="#1E293B"
-        android:textSize="13sp"
-        android:textStyle="bold" />
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
 
-    <TextView
-        android:id="@+id/orderArea"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1.2"
-        android:textColor="#64748B"
-        android:textSize="13sp" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="MEJA"
+                android:textColor="#64748B"
+                android:textSize="9sp"
+                android:textStyle="bold" />
 
-    <TextView
-        android:id="@+id/orderPax"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="0.8"
-        android:gravity="center"
-        android:textColor="#1E293B"
-        android:textSize="13sp" />
+            <TextView
+                android:id="@+id/orderTable"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:textColor="#0F172A"
+                android:textSize="21sp"
+                android:textStyle="bold" />
+        </LinearLayout>
 
-    <!-- Lock Column -->
-    <FrameLayout
-        android:layout_width="0dp"
+        <TextView
+            android:id="@+id/orderStatusChip"
+            android:layout_width="wrap_content"
+            android:layout_height="26dp"
+            android:background="@drawable/bg_order_open_chip"
+            android:gravity="center"
+            android:minWidth="62dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:textColor="#047857"
+            android:textSize="9sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="0.5">
+        android:layout_marginTop="10dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="14dp"
+            android:layout_height="14dp"
+            android:contentDescription="Area"
+            android:src="@drawable/ic_location"
+            app:tint="#1E00A8" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/orderArea"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="#1E293B"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/orderSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="#64748B"
+                android:textSize="9sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="9dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="14dp"
+            android:layout_height="14dp"
+            android:contentDescription="Pax"
+            android:src="@drawable/ic_users"
+            app:tint="#F97316" />
+
+        <TextView
+            android:id="@+id/orderPax"
+            android:layout_width="wrap_content"
+            android:layout_height="24dp"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/bg_order_pax_chip"
+            android:gravity="center"
+            android:minWidth="46dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:textColor="#9A3412"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="9dp"
+        android:background="#EEF2F7" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="13dp"
+            android:layout_height="13dp"
+            android:contentDescription="Waktu"
+            android:src="@drawable/ic_clock"
+            app:tint="#64748B" />
+
+        <TextView
+            android:id="@+id/orderTime"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="5dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#475569"
+            android:textSize="10sp" />
 
         <ImageView
             android:id="@+id/imgLock"
-            android:layout_width="16dp"
-            android:layout_height="16dp"
-            android:layout_gravity="center"
-            android:src="@android:drawable/ic_lock_lock"
-            app:tint="#EF4444"
+            android:layout_width="14dp"
+            android:layout_height="14dp"
+            android:contentDescription="Locked"
+            android:src="@drawable/ic_lock_small"
             android:visibility="gone"
-            android:contentDescription="Locked" />
-    </FrameLayout>
+            app:tint="#EF4444" />
+    </LinearLayout>
 
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="5dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="13dp"
+            android:layout_height="13dp"
+            android:contentDescription="Waiter"
+            android:src="@drawable/ic_waiter"
+            app:tint="#64748B" />
+
+        <TextView
+            android:id="@+id/orderWaiter"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="5dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#475569"
+            android:textSize="10sp" />
+    </LinearLayout>
 </LinearLayout>

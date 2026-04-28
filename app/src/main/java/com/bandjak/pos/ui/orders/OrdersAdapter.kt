@@ -1,5 +1,6 @@
 package com.bandjak.pos.ui.orders
 
+import android.graphics.Color
 import java.text.SimpleDateFormat
 import java.util.*
 import android.view.LayoutInflater
@@ -30,28 +31,49 @@ class OrdersAdapter(
 
     private fun formatTime(time: String?): String {
         if (time == null) return "-"
-        return try {
-            val input = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault())
-            val date = input.parse(time)
-            val output = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-            output.format(date!!)
-        } catch (e: Exception) {
-            time ?: "-"
+        val formats = listOf(
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+            "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy-MM-dd HH:mm"
+        )
+
+        for (format in formats) {
+            try {
+                val input = SimpleDateFormat(format, Locale.getDefault())
+                val date = input.parse(time)
+                if (date != null) {
+                    val output = SimpleDateFormat("dd MMM, HH:mm", Locale("id", "ID"))
+                    return output.format(date)
+                }
+            } catch (e: Exception) {
+                // Try the next known API format.
+            }
         }
+
+        return time
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val order = orders[position]
+        val locked = order.latestLockState.equals("Locked", ignoreCase = true)
 
         holder.binding.orderTime.text = formatTime(order.oStartTime)
         holder.binding.orderTable.text = order.table?.tName ?: "-"
         holder.binding.orderArea.text = order.tablesArea?.taName ?: "-"
-        holder.binding.orderPax.text = order.oPax ?: "-"
+        holder.binding.orderSection.text = order.table?.tablesSection?.tsName ?: "Section -"
+        holder.binding.orderPax.text = "${order.oPax ?: "-"} pax"
+        holder.binding.orderWaiter.text = "Waiter: ${order.user?.userName ?: "-"}"
 
-        // Logika Gembok: Jika o_locked == "True" (String dari API)
-        if (order.oLocked.equals("True", ignoreCase = true)) {
+        if (locked) {
+            holder.binding.orderStatusChip.text = "TERKUNCI"
+            holder.binding.orderStatusChip.setTextColor(Color.parseColor("#BE123C"))
+            holder.binding.orderStatusChip.setBackgroundResource(com.bandjak.pos.R.drawable.bg_order_locked_chip)
             holder.binding.imgLock.visibility = View.VISIBLE
         } else {
+            holder.binding.orderStatusChip.text = "AKTIF"
+            holder.binding.orderStatusChip.setTextColor(Color.parseColor("#047857"))
+            holder.binding.orderStatusChip.setBackgroundResource(com.bandjak.pos.R.drawable.bg_order_open_chip)
             holder.binding.imgLock.visibility = View.GONE
         }
 

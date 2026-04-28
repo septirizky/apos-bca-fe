@@ -103,8 +103,9 @@ class DownPaymentActivity : AppCompatActivity() {
 
         val filtered = allDownPayments.filter {
             val name = it.name.lowercase()
+            val contact = it.contact.orEmpty().lowercase()
 
-            name.contains(keyword)
+            name.contains(keyword) || contact.contains(keyword)
         }
 
         adapter.update(filtered)

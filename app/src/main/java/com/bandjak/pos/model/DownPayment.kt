@@ -10,6 +10,9 @@ data class DownPayment(
     @SerializedName("dp_name")
     val name: String,
 
+    @SerializedName("dp_contact")
+    val contact: String?,
+
     @SerializedName("dp_amount")
     val amount: String
 )

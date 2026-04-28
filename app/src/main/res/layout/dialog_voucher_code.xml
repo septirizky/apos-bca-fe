@@ -50,6 +50,69 @@
         </com.google.android.material.card.MaterialCardView>
 
         <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnCheckVoucher"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="46dp"
+            android:layout_marginTop="10dp"
+            android:text="Cek Voucher"
+            android:textAllCaps="false"
+            android:textColor="#1A0DAB"
+            android:textStyle="bold"
+            app:cornerRadius="12dp"
+            app:strokeColor="#C7D2FE"
+            app:strokeWidth="1dp" />
+
+        <LinearLayout
+            android:id="@+id/voucherInfoCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:background="@drawable/bg_down_payment_row_selected"
+            android:orientation="vertical"
+            android:padding="12dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/txtVoucherGroup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Kelompok Voucher"
+                android:textColor="#0F172A"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/txtVoucherStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="5dp"
+                android:text="Status Voucher"
+                android:textColor="#64748B"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/txtVoucherPeriod"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="5dp"
+                android:text="Masa Berlaku"
+                android:textColor="#64748B"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/txtVoucherValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="end"
+                android:text="Rp 0"
+                android:textColor="#1A0DAB"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/btnRemoveVoucher"
             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
             android:layout_width="match_parent"
@@ -93,9 +156,11 @@
                 android:layout_width="0dp"
                 android:layout_height="52dp"
                 android:layout_weight="1"
-                android:backgroundTint="#1A0DAB"
+                android:backgroundTint="@color/button_primary_state"
+                android:enabled="false"
                 android:text="Terapkan"
                 android:textAllCaps="false"
+                android:textColor="@color/button_primary_text_state"
                 android:textStyle="bold"
                 app:cornerRadius="12dp" />
         </LinearLayout>

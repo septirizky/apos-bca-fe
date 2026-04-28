@@ -119,11 +119,13 @@
                     style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                     android:layout_width="0dp"
                     android:layout_height="match_parent"
-                    android:layout_marginEnd="5dp"
-                    android:layout_weight="1"
+                    android:layout_marginEnd="4dp"
+                    android:layout_weight="1.25"
+                    android:maxLines="1"
+                    android:minWidth="0dp"
                     android:text="DOWNPAYMENT"
                     android:textColor="#0F172A"
-                    android:textSize="10sp"
+                    android:textSize="9sp"
                     app:icon="@drawable/ic_downpayment"
                     app:iconGravity="top"
                     app:iconPadding="4dp"
@@ -137,7 +139,7 @@
                     style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                     android:layout_width="0dp"
                     android:layout_height="match_parent"
-                    android:layout_marginHorizontal="5dp"
+                    android:layout_marginHorizontal="4dp"
                     android:layout_weight="1"
                     android:text="DISKON"
                     android:textColor="#0F172A"
@@ -155,7 +157,7 @@
                     style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                     android:layout_width="0dp"
                     android:layout_height="match_parent"
-                    android:layout_marginStart="5dp"
+                    android:layout_marginStart="4dp"
                     android:layout_weight="1"
                     android:text="VOUCHER"
                     android:textColor="#0F172A"
@@ -268,17 +270,6 @@
                     app:strokeColor="#E2E8F0" />
             </LinearLayout>
 
-            <TextView
-                android:id="@+id/btnPreviewReceipt"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:layout_marginTop="14dp"
-                android:background="@drawable/bg_dashed_button"
-                android:gravity="center"
-                android:text="Preview Receipt / Bill"
-                android:textColor="#334155"
-                android:textSize="13sp"
-                android:textStyle="bold" />
         </LinearLayout>
     </ScrollView>
 
@@ -292,16 +283,53 @@
         android:paddingTop="6dp"
         android:visibility="gone" />
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnCompletePayment"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="56dp"
         android:layout_marginHorizontal="16dp"
         android:layout_marginTop="10dp"
         android:layout_marginBottom="16dp"
-        android:backgroundTint="#1A05A3"
-        android:text="Selesaikan Pembayaran"
-        android:textAllCaps="false"
-        android:textStyle="bold"
-        app:cornerRadius="8dp" />
+        android:orientation="horizontal">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnPreviewReceipt"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="56dp"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="10dp"
+            android:contentDescription="Preview Receipt / Bill"
+            android:gravity="center"
+            android:minWidth="0dp"
+            android:paddingStart="0dp"
+            android:paddingEnd="0dp"
+            android:text=""
+            app:backgroundTint="#FFF1F2"
+            app:cornerRadius="8dp"
+            app:icon="@drawable/ic_preview"
+            app:iconGravity="textStart"
+            app:iconPadding="0dp"
+            app:iconSize="22dp"
+            app:iconTint="#E11D48"
+            app:strokeColor="#FFE4E6" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnCompletePayment"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:autoSizeMaxTextSize="14sp"
+            android:autoSizeMinTextSize="10sp"
+            android:autoSizeStepGranularity="1sp"
+            android:autoSizeTextType="uniform"
+            android:backgroundTint="#1A05A3"
+            android:maxLines="1"
+            android:text="Selesaikan Pembayaran"
+            android:textAllCaps="false"
+            android:textStyle="bold"
+            app:autoSizeMaxTextSize="14sp"
+            app:autoSizeMinTextSize="10sp"
+            app:autoSizeStepGranularity="1sp"
+            app:autoSizeTextType="uniform"
+            app:cornerRadius="8dp" />
+    </LinearLayout>
 </LinearLayout>

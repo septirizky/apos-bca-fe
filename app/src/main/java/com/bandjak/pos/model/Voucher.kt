@@ -27,5 +27,7 @@ data class Voucher(
     val endDate: String?,
     @SerializedName("v_status")
     val status: String?,
+    @SerializedName("vs_name")
+    val setName: String?,
     val expired: Boolean
 )

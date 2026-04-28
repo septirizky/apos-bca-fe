@@ -27,6 +27,7 @@ class ApiSettingsActivity : AppCompatActivity() {
 
         setupHeader()
         binding.editBaseUrl.setText(ApiClient.getBaseUrl())
+        binding.editPosId.setText(ApiClient.getPosId(applicationContext))
         updateSocketPreview()
 
         binding.editBaseUrl.addTextChangedListener(object : TextWatcher {
@@ -40,6 +41,7 @@ class ApiSettingsActivity : AppCompatActivity() {
         binding.btnSave.setOnClickListener { saveConfig() }
         binding.btnResetDefault.setOnClickListener {
             binding.editBaseUrl.setText(ApiClient.DEFAULT_BASE_URL)
+            binding.editPosId.setText(ApiClient.DEFAULT_POS_ID)
             saveConfig()
         }
     }
@@ -47,7 +49,7 @@ class ApiSettingsActivity : AppCompatActivity() {
     private fun setupHeader() {
         binding.globalHeader.headerBackButton.visibility = View.VISIBLE
         binding.globalHeader.headerBackButton.setOnClickListener { finish() }
-        binding.globalHeader.headerBranchName.text = "API Settings"
+        binding.globalHeader.headerBranchName.text = "Settings"
     }
 
     private fun updateSocketPreview() {
@@ -74,10 +76,12 @@ class ApiSettingsActivity : AppCompatActivity() {
             Toast.makeText(this, "Format Base URL tidak valid", Toast.LENGTH_SHORT).show()
             return
         }
+        val posId = binding.editPosId.text.toString().trim().ifBlank { ApiClient.DEFAULT_POS_ID }
 
-        ApiClient.saveBaseUrl(applicationContext, normalizedUrl)
+        ApiClient.saveConfig(applicationContext, normalizedUrl, posId)
         PosRealtimeSocket.reconnect()
         binding.editBaseUrl.setText(ApiClient.getBaseUrl())
+        binding.editPosId.setText(ApiClient.getPosId(applicationContext))
         updateSocketPreview()
         Toast.makeText(this, "Konfigurasi API disimpan", Toast.LENGTH_SHORT).show()
     }

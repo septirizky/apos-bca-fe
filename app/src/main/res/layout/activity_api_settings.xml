@@ -25,7 +25,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="API Settings"
+                android:text="Settings"
                 android:textColor="#0F172A"
                 android:textSize="22sp"
                 android:textStyle="bold" />
@@ -34,7 +34,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="Atur alamat backend POS yang digunakan aplikasi."
+                android:text="Atur koneksi server dan identitas POS aplikasi."
                 android:textColor="#64748B"
                 android:textSize="13sp" />
 
@@ -43,7 +43,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="18dp"
                 app:cardBackgroundColor="#FFFFFF"
-                app:cardCornerRadius="12dp"
+                app:cardCornerRadius="8dp"
                 app:cardElevation="0dp"
                 app:strokeColor="#E2E8F0"
                 app:strokeWidth="1dp">
@@ -57,6 +57,23 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:text="API Setting"
+                        android:textColor="#0F172A"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Alamat backend dan realtime aplikasi."
+                        android:textColor="#64748B"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
                         android:text="Base URL"
                         android:textColor="#334155"
                         android:textSize="13sp"
@@ -84,37 +101,94 @@
                         android:text="Realtime: ws://10.0.2.2:3000/realtime"
                         android:textColor="#64748B"
                         android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/txtConnectionStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="36dp"
+                        android:layout_marginTop="10dp"
+                        android:gravity="center_vertical"
+                        android:text="Belum dites"
+                        android:textColor="#64748B"
+                        android:textSize="13sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnTestConnection"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="50dp"
+                        android:text="Test Connection"
+                        android:textAllCaps="false"
+                        android:textColor="#1A0DAB"
+                        android:textStyle="bold"
+                        app:cornerRadius="8dp"
+                        app:strokeColor="#1A0DAB"
+                        app:strokeWidth="1dp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <TextView
-                android:id="@+id/txtConnectionStatus"
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
-                android:layout_height="44dp"
-                android:layout_marginTop="14dp"
-                android:gravity="center_vertical"
-                android:text="Belum dites"
-                android:textColor="#64748B"
-                android:textSize="13sp" />
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                app:cardBackgroundColor="#FFFFFF"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="0dp"
+                app:strokeColor="#E2E8F0"
+                app:strokeWidth="1dp">
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnTestConnection"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:text="Test Connection"
-                android:textAllCaps="false"
-                android:textColor="#1A0DAB"
-                android:textStyle="bold"
-                app:cornerRadius="8dp"
-                app:strokeColor="#1A0DAB"
-                app:strokeWidth="1dp" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="POS Setting"
+                        android:textColor="#0F172A"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Identitas terminal untuk log lock dan transaksi."
+                        android:textColor="#64748B"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:text="POS ID"
+                        android:textColor="#334155"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <EditText
+                        android:id="@+id/editPosId"
+                        android:layout_width="match_parent"
+                        android:layout_height="52dp"
+                        android:layout_marginTop="8dp"
+                        android:background="@android:drawable/editbox_background_normal"
+                        android:backgroundTint="#F8FAFC"
+                        android:hint="APOS1"
+                        android:inputType="textCapCharacters"
+                        android:paddingHorizontal="12dp"
+                        android:singleLine="true"
+                        android:textColor="#0F172A"
+                        android:textSize="14sp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnSave"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
-                android:layout_marginTop="10dp"
+                android:layout_marginTop="14dp"
                 android:backgroundTint="#1A0DAB"
                 android:text="Simpan Konfigurasi"
                 android:textAllCaps="false"

@@ -7,6 +7,8 @@
     </queries>
 
     <application
+        android:icon="@drawable/bandar_djakarta_logo"
+        android:roundIcon="@drawable/bandar_djakarta_logo"
         android:usesCleartextTraffic="true"
         android:label="APOS BANDJAK"
         android:theme="@style/Theme.APOSBandjak">

@@ -50,6 +50,49 @@
         </com.google.android.material.card.MaterialCardView>
 
         <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnCheckDiscount"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="46dp"
+            android:layout_marginTop="10dp"
+            android:text="Cek Diskon"
+            android:textAllCaps="false"
+            android:textColor="#1A0DAB"
+            android:textStyle="bold"
+            app:cornerRadius="12dp"
+            app:strokeColor="#C7D2FE"
+            app:strokeWidth="1dp" />
+
+        <LinearLayout
+            android:id="@+id/discountInfoCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:background="@drawable/bg_dialog_info_success"
+            android:orientation="vertical"
+            android:padding="12dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/txtDiscountMember"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Member"
+                android:textColor="#0F172A"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/txtDiscountName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="5dp"
+                android:text="Nama Diskon"
+                android:textColor="#64748B"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/btnRemove"
             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
             android:layout_width="match_parent"
@@ -93,9 +136,11 @@
                 android:layout_width="0dp"
                 android:layout_height="52dp"
                 android:layout_weight="1"
-                android:backgroundTint="#1A0DAB"
+                android:backgroundTint="@color/button_primary_state"
+                android:enabled="false"
                 android:text="Terapkan"
                 android:textAllCaps="false"
+                android:textColor="@color/button_primary_text_state"
                 android:textStyle="bold"
                 app:cornerRadius="12dp" />
         </LinearLayout>

@@ -16,6 +16,7 @@ import com.bandjak.pos.realtime.PosRealtimeSocket
 import com.bandjak.pos.ui.orders.OrdersActivity
 import com.bandjak.pos.ui.settings.ApiSettingsActivity
 import com.bandjak.pos.util.AutoRefreshTimer
+import java.util.Locale
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -77,13 +78,28 @@ class LoginActivity : AppCompatActivity() {
         ApiClient.api.getBranchName().enqueue(object : Callback<BranchNameResponse> {
             override fun onResponse(call: Call<BranchNameResponse>, response: Response<BranchNameResponse>) {
                 if (response.isSuccessful) {
-                    binding.globalHeader.headerBranchName.text = response.body()?.branchName ?: "BANDAR DJAKARTA"
+                    val branchName = response.body()?.branchName ?: "BANDAR DJAKARTA"
+                    binding.globalHeader.headerBranchName.text = branchName
+                    updateRestaurantLogo(branchName)
                 }
             }
             override fun onFailure(call: Call<BranchNameResponse>, t: Throwable) {
-                binding.globalHeader.headerBranchName.text = "BANDAR DJAKARTA"
+                val branchName = "BANDAR DJAKARTA"
+                binding.globalHeader.headerBranchName.text = branchName
+                updateRestaurantLogo(branchName)
             }
         })
+    }
+
+    private fun updateRestaurantLogo(branchName: String) {
+        val normalizedBranchName = branchName.uppercase(Locale.ROOT)
+        val logoRes = if (normalizedBranchName.contains("PESISIR")) {
+            R.drawable.pesisir_seafood_logo
+        } else {
+            R.drawable.bandar_djakarta_login_logo
+        }
+
+        binding.statusLogo.setImageResource(logoRes)
     }
 
     private fun checkDatabaseStatus() {
@@ -92,8 +108,6 @@ class LoginActivity : AppCompatActivity() {
                 if (response.isSuccessful && response.body()?.status == "Online") {
                     binding.txtStatus.text = "Online"
                     binding.txtStatus.setTextColor(ContextCompat.getColor(this@LoginActivity, android.R.color.black))
-                    binding.statusIcon.setImageResource(android.R.drawable.checkbox_on_background)
-                    binding.statusIcon.setColorFilter(ContextCompat.getColor(this@LoginActivity, android.R.color.holo_green_dark))
                 } else {
                     setOfflineStatus()
                 }
@@ -107,8 +121,6 @@ class LoginActivity : AppCompatActivity() {
     private fun setOfflineStatus() {
         binding.txtStatus.text = "Offline"
         binding.txtStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_dark))
-        binding.statusIcon.setImageResource(android.R.drawable.ic_delete)
-        binding.statusIcon.setColorFilter(ContextCompat.getColor(this, android.R.color.holo_red_dark))
     }
 
     private fun setupNumericKeypad() {

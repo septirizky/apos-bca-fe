@@ -6,6 +6,8 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.util.Log
 import android.view.Gravity
 import android.view.View
@@ -22,7 +24,11 @@ import com.bandjak.pos.R
 import com.bandjak.pos.api.ApiClient
 import com.bandjak.pos.databinding.ActivityOrderDetailBinding
 import com.bandjak.pos.model.BranchNameResponse
+import com.bandjak.pos.model.DiscountValidateRequest
+import com.bandjak.pos.model.DiscountValidateResponse
 import com.bandjak.pos.model.OrderDetailResponse
+import com.bandjak.pos.model.OrderLockRequest
+import com.bandjak.pos.model.OrderLockResponse
 import com.bandjak.pos.model.OrderMemberCodeRequest
 import com.bandjak.pos.model.OrderMemberCodeResponse
 import com.bandjak.pos.realtime.PosRealtimeSocket
@@ -32,6 +38,8 @@ import org.json.JSONObject
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
+import java.net.Inet4Address
+import java.net.NetworkInterface
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
@@ -47,6 +55,7 @@ class OrderDetailActivity : AppCompatActivity() {
     private var currentDiscountAmount: Double = 0.0
     private var currentItemSaleId: Int = 0
     private var currentItemSaleCounter: Int = 0
+    private var currentWaiterName: String? = null
     private val autoRefreshTimer = AutoRefreshTimer {
         updateHeaderDateTime()
         loadBranchName()
@@ -79,6 +88,7 @@ class OrderDetailActivity : AppCompatActivity() {
         }
 
         currentOrderId = intent.getIntExtra("ORDER_ID", 0)
+        currentWaiterName = intent.getStringExtra("WAITER_NAME")
         binding.txtTableNumber.text = "Table $currentOrderId"
 
         adapter = OrderDetailAdapter(listOf())
@@ -115,6 +125,7 @@ class OrderDetailActivity : AppCompatActivity() {
                 putExtra("TOTAL_AMOUNT", currentTotalAmount)
                 putExtra("DISCOUNT_AMOUNT", currentDiscountAmount)
                 putExtra("MEMBER_CODE", currentMemberCode)
+                putExtra("WAITER_NAME", currentWaiterName)
                 putExtra("U_NAME", getIntent().getStringExtra("U_NAME") ?: "Admin User")
                 putExtra("U_ID", getIntent().getIntExtra("U_ID", 0))
             }
@@ -132,13 +143,30 @@ class OrderDetailActivity : AppCompatActivity() {
         val editCode = dialog.findViewById<EditText>(R.id.editDiscountCode)
         val btnCancel = dialog.findViewById<Button>(R.id.btnCancel)
         val btnRemove = dialog.findViewById<Button>(R.id.btnRemove)
+        val btnCheck = dialog.findViewById<Button>(R.id.btnCheckDiscount)
         val btnApply = dialog.findViewById<Button>(R.id.btnApply)
+        val infoCard = dialog.findViewById<LinearLayout>(R.id.discountInfoCard)
+        val txtMember = dialog.findViewById<TextView>(R.id.txtDiscountMember)
+        val txtName = dialog.findViewById<TextView>(R.id.txtDiscountName)
+        var validatedCode: String? = null
 
         editCode.setText(currentMemberCode.orEmpty())
         editCode.setSelection(editCode.text.length)
         val hasAppliedMember = !currentMemberCode.isNullOrBlank()
 
         btnRemove.visibility = if (hasAppliedMember) View.VISIBLE else View.GONE
+        btnApply.isEnabled = false
+
+        editCode.addTextChangedListener(object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
+                validatedCode = null
+                btnApply.isEnabled = false
+                infoCard.visibility = View.GONE
+            }
+
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+        })
 
         btnCancel.setOnClickListener { dialog.dismiss() }
 
@@ -146,16 +174,94 @@ class OrderDetailActivity : AppCompatActivity() {
             applyMemberCode(dialog, btnRemove, null)
         }
 
+        btnCheck.setOnClickListener {
+            val code = editCode.text.toString().trim()
+            if (code.isBlank()) {
+                showDiscountInfo(infoCard, txtMember, txtName, "Kode diskon belum diisi", "Masukkan kode terlebih dahulu", false)
+            } else {
+                validateDiscountMember(
+                    code = code,
+                    actionButton = btnCheck,
+                    onValid = { result ->
+                        validatedCode = code
+                        btnApply.isEnabled = true
+                        val member = result.member
+                        val discount = result.discounts.firstOrNull()
+                        showDiscountInfo(
+                            infoCard,
+                            txtMember,
+                            txtName,
+                            "Member: ${member?.name ?: code}",
+                            "Diskon: ${discount?.name ?: "-"}",
+                            true
+                        )
+                    },
+                    onInvalid = { message ->
+                        validatedCode = null
+                        btnApply.isEnabled = false
+                        showDiscountInfo(infoCard, txtMember, txtName, "Diskon tidak ditemukan", message, false)
+                    }
+                )
+            }
+        }
+
         btnApply.setOnClickListener {
             val code = editCode.text.toString().trim()
-            if (code.isNotEmpty()) {
+            if (validatedCode == code) {
                 applyMemberCode(dialog, btnApply, code)
             } else {
-                Toast.makeText(this, "Masukkan kode terlebih dahulu", Toast.LENGTH_SHORT).show()
+                showDiscountInfo(infoCard, txtMember, txtName, "Cek diskon terlebih dahulu", "Tekan tombol Cek Diskon sebelum menerapkan", false)
             }
         }
 
         dialog.show()
+    }
+
+    private fun validateDiscountMember(
+        code: String,
+        actionButton: Button,
+        onValid: (DiscountValidateResponse) -> Unit,
+        onInvalid: (String) -> Unit
+    ) {
+        actionButton.isEnabled = false
+        ApiClient.api.validateDiscountMember(DiscountValidateRequest(code))
+            .enqueue(object : Callback<DiscountValidateResponse> {
+                override fun onResponse(
+                    call: Call<DiscountValidateResponse>,
+                    response: Response<DiscountValidateResponse>
+                ) {
+                    actionButton.isEnabled = true
+                    val body = response.body()
+                    if (response.isSuccessful && body != null) {
+                        onValid(body)
+                    } else {
+                        onInvalid(getErrorMessage(response))
+                    }
+                }
+
+                override fun onFailure(call: Call<DiscountValidateResponse>, t: Throwable) {
+                    actionButton.isEnabled = true
+                    onInvalid(t.message ?: "Gagal validasi diskon")
+                }
+            })
+    }
+
+    private fun showDiscountInfo(
+        infoCard: LinearLayout,
+        titleView: TextView,
+        subtitleView: TextView,
+        title: String,
+        subtitle: String,
+        success: Boolean
+    ) {
+        infoCard.visibility = View.VISIBLE
+        infoCard.setBackgroundResource(
+            if (success) R.drawable.bg_dialog_info_success else R.drawable.bg_dialog_info_error
+        )
+        titleView.text = title
+        titleView.setTextColor(Color.parseColor(if (success) "#0F172A" else "#E11D48"))
+        subtitleView.text = subtitle
+        subtitleView.setTextColor(Color.parseColor("#64748B"))
     }
 
     override fun onStart() {
@@ -168,6 +274,47 @@ class OrderDetailActivity : AppCompatActivity() {
         autoRefreshTimer.stop()
         PosRealtimeSocket.removeListener(realtimeListener)
         super.onStop()
+    }
+
+    override fun onDestroy() {
+        if (isFinishing && currentOrderId != 0) {
+            releaseOrderLock()
+        }
+        super.onDestroy()
+    }
+
+    private fun releaseOrderLock(onDone: (() -> Unit)? = null) {
+        val userId = intent.getIntExtra("U_ID", 0)
+        if (userId == 0 || currentOrderId == 0) {
+            onDone?.invoke()
+            return
+        }
+
+        ApiClient.api.unlockOrder(
+            currentOrderId,
+            OrderLockRequest(
+                userId = userId,
+                posId = ApiClient.getPosId(applicationContext),
+                posIp = localIpAddress()
+            )
+        ).enqueue(object : Callback<OrderLockResponse> {
+            override fun onResponse(call: Call<OrderLockResponse>, response: Response<OrderLockResponse>) {
+                onDone?.invoke()
+            }
+
+            override fun onFailure(call: Call<OrderLockResponse>, t: Throwable) {
+                onDone?.invoke()
+            }
+        })
+    }
+
+    private fun localIpAddress(): String? {
+        return runCatching {
+            NetworkInterface.getNetworkInterfaces().asSequence()
+                .flatMap { it.inetAddresses.asSequence() }
+                .firstOrNull { !it.isLoopbackAddress && it is Inet4Address }
+                ?.hostAddress
+        }.getOrNull()
     }
 
     private fun updateHeaderDateTime() {
@@ -249,6 +396,7 @@ class OrderDetailActivity : AppCompatActivity() {
                     currentItemSaleId = data.itemSaleId ?: 0
                     currentItemSaleCounter = data.nextItemSaleCounter ?: 0
                     currentTableName = data.tName ?: orderId.toString()
+                    currentWaiterName = data.waiterName ?: currentWaiterName
                     binding.txtTableNumber.text = "Table ${data.tName ?: orderId}"
                     adapter.update(data.items)
                     binding.txtItemCount.text = "${data.items.size} Items"

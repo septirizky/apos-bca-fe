@@ -31,9 +31,11 @@
             android:id="@+id/headerBranchName"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
             android:text="PESISIR SEAFOOD"
             android:textColor="#1A0DAB"
-            android:textSize="16sp"
+            android:textSize="18sp"
             android:textStyle="bold" />
     </LinearLayout>
 

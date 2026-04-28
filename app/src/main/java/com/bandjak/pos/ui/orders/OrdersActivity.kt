@@ -7,13 +7,14 @@ import android.text.TextWatcher
 import android.view.View
 import android.widget.PopupMenu
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.GridLayoutManager
 import com.bandjak.pos.api.ApiClient
 import com.bandjak.pos.databinding.ActivityOrdersBinding
 import com.bandjak.pos.model.BranchNameResponse
 import com.bandjak.pos.model.Order
+import com.bandjak.pos.model.OrderLockRequest
+import com.bandjak.pos.model.OrderLockResponse
 import com.bandjak.pos.model.OrdersResponse
 import com.bandjak.pos.realtime.PosRealtimeSocket
 import com.bandjak.pos.ui.login.LoginActivity
@@ -21,6 +22,8 @@ import com.bandjak.pos.util.AutoRefreshTimer
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
+import java.net.Inet4Address
+import java.net.NetworkInterface
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -60,19 +63,10 @@ class OrdersActivity : AppCompatActivity() {
         }
 
         adapter = OrdersAdapter(listOf()) { order ->
-            // Cek apakah order sedang di-lock
-            if (order.oLocked.equals("True", ignoreCase = true)) {
-                Toast.makeText(this, "Meja sedang digunakan di device lain", Toast.LENGTH_SHORT).show()
-            } else {
-                val intent = Intent(this, OrderDetailActivity::class.java)
-                intent.putExtra("ORDER_ID", order.oId)
-                intent.putExtra("U_NAME", userName)
-                intent.putExtra("U_ID", userId)
-                startActivity(intent)
-            }
+            lockAndOpenOrder(order, userName, userId)
         }
 
-        binding.ordersRecycler.layoutManager = LinearLayoutManager(this)
+        binding.ordersRecycler.layoutManager = GridLayoutManager(this, 2)
         binding.ordersRecycler.adapter = adapter
 
         loadBranchName()
@@ -86,6 +80,58 @@ class OrdersActivity : AppCompatActivity() {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
         })
+    }
+
+    private fun lockAndOpenOrder(order: Order, userName: String, userId: Int) {
+        val orderId = order.oId ?: return
+
+        ApiClient.api.lockOrder(
+            orderId,
+            OrderLockRequest(
+                userId = userId,
+                posId = ApiClient.getPosId(applicationContext),
+                posIp = localIpAddress()
+            )
+        ).enqueue(object : Callback<OrderLockResponse> {
+            override fun onResponse(call: Call<OrderLockResponse>, response: Response<OrderLockResponse>) {
+                if (response.isSuccessful) {
+                    val intent = Intent(this@OrdersActivity, OrderDetailActivity::class.java)
+                        .putExtra("ORDER_ID", orderId)
+                        .putExtra("WAITER_NAME", order.user?.userName)
+                        .putExtra("U_NAME", userName)
+                        .putExtra("U_ID", userId)
+                    startActivity(intent)
+                } else {
+                    Toast.makeText(this@OrdersActivity, getErrorMessage(response), Toast.LENGTH_SHORT).show()
+                    loadOrders()
+                }
+            }
+
+            override fun onFailure(call: Call<OrderLockResponse>, t: Throwable) {
+                Toast.makeText(this@OrdersActivity, t.message ?: "Gagal mengunci meja", Toast.LENGTH_SHORT).show()
+            }
+        })
+    }
+
+    private fun localIpAddress(): String? {
+        return runCatching {
+            NetworkInterface.getNetworkInterfaces().asSequence()
+                .flatMap { it.inetAddresses.asSequence() }
+                .firstOrNull { !it.isLoopbackAddress && it is Inet4Address }
+                ?.hostAddress
+        }.getOrNull()
+    }
+
+    private fun getErrorMessage(response: Response<*>): String {
+        val rawError = response.errorBody()?.string().orEmpty()
+        if (rawError.isBlank()) return "Terjadi kesalahan"
+
+        return runCatching {
+            val json = org.json.JSONObject(rawError)
+            json.optString("message")
+                .ifBlank { json.optString("error") }
+                .ifBlank { rawError }
+        }.getOrDefault(rawError)
     }
 
     override fun onStart() {
@@ -146,17 +192,48 @@ class OrdersActivity : AppCompatActivity() {
     }
 
     private fun renderOrders(keyword: String = binding.searchInput.text.toString().lowercase()) {
-        if (keyword.isBlank()) {
-            adapter.update(allOrders)
-            return
+        val filtered = if (keyword.isBlank()) {
+            allOrders
+        } else {
+            allOrders.filter {
+                val table = it.table?.tName ?: ""
+                val area = it.tablesArea?.taName ?: ""
+                val section = it.table?.tablesSection?.tsName ?: ""
+                val waiter = it.user?.userName ?: ""
+
+                table.lowercase().contains(keyword) ||
+                    area.lowercase().contains(keyword) ||
+                    section.lowercase().contains(keyword) ||
+                    waiter.lowercase().contains(keyword)
+            }
         }
 
-        val filtered = allOrders.filter {
-            val table = it.table?.tName ?: ""
-            val area = it.tablesArea?.taName ?: ""
-
-            table.lowercase().contains(keyword) || area.lowercase().contains(keyword)
-        }
         adapter.update(filtered)
+        updateOrdersSummary(filtered.size, keyword)
+    }
+
+    private fun updateOrdersSummary(visibleCount: Int, keyword: String) {
+        val totalCount = allOrders.size
+        binding.ordersCountChip.text = "$visibleCount Meja"
+
+        binding.ordersSummaryText.text = if (keyword.isBlank()) {
+            "$totalCount order aktif saat ini"
+        } else {
+            "$visibleCount dari $totalCount order cocok"
+        }
+
+        if (visibleCount == 0) {
+            binding.ordersRecycler.visibility = View.GONE
+            binding.emptyState.visibility = View.VISIBLE
+            binding.emptyStateTitle.text = if (keyword.isBlank()) "Belum ada order aktif" else "Order tidak ditemukan"
+            binding.emptyStateMessage.text = if (keyword.isBlank()) {
+                "Order aktif akan muncul di sini."
+            } else {
+                "Coba gunakan nomor meja, area, atau section lain."
+            }
+        } else {
+            binding.ordersRecycler.visibility = View.VISIBLE
+            binding.emptyState.visibility = View.GONE
+        }
     }
 }
