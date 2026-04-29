@@ -4,6 +4,18 @@
 
     <queries>
         <package android:name="com.bca.apos" />
+        <package android:name="com.bca.apos.castles" />
+        <package android:name="com.bca.apos.ingenico" />
+        <package android:name="com.bca.apos.pax" />
+        <package android:name="com.bca.apos.verifone" />
+        <package android:name="com.bca.apos.dev.castles" />
+        <package android:name="com.bca.apos.dev.ingenico" />
+        <package android:name="com.bca.apos.dev.pax" />
+        <package android:name="com.bca.apos.dev.verifone" />
+        <package android:name="com.bca.apos.staging.castles" />
+        <package android:name="com.bca.apos.staging.ingenico" />
+        <package android:name="com.bca.apos.staging.pax" />
+        <package android:name="com.bca.apos.staging.verifone" />
     </queries>
 
     <application

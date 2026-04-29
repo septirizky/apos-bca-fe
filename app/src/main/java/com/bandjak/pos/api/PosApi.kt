@@ -67,4 +67,9 @@ interface PosApi {
     fun completePayment(
         @Body body: PaymentRequest
     ): Call<PaymentResponse>
+
+    @POST("api/logs/pi-mlp")
+    fun savePiMlpLog(
+        @Body body: PiMlpLogRequest
+    ): Call<PiMlpLogResponse>
 }

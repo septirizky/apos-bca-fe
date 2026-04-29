@@ -44,6 +44,8 @@ import com.bandjak.pos.model.OrderMemberCodeRequest
 import com.bandjak.pos.model.OrderMemberCodeResponse
 import com.bandjak.pos.model.PaymentRequest
 import com.bandjak.pos.model.PaymentResponse
+import com.bandjak.pos.model.PiMlpLogRequest
+import com.bandjak.pos.model.PiMlpLogResponse
 import com.bandjak.pos.model.ReceiptInfoResponse
 import com.bandjak.pos.model.Voucher
 import com.bandjak.pos.model.VoucherValidateRequest
@@ -51,6 +53,7 @@ import com.bandjak.pos.model.VoucherValidateResponse
 import com.bandjak.pos.ui.login.LoginActivity
 import com.bca.apos.FeatureType
 import com.bca.apos.InquiryFlag
+import com.bca.apos.PartnerInquiryData
 import com.bca.apos.TransactionStatus
 import org.json.JSONObject
 import retrofit2.Call
@@ -1333,11 +1336,33 @@ class PaymentActivity : AppCompatActivity() {
             aposManager.connect()
             isCompletingPayment = false
             binding.btnCompletePayment.isEnabled = true
+            logAposEvent(
+                call = APOS_SERVICE_CALL,
+                request = mapOf(
+                    "event" to "APOS_SERVICE_BIND",
+                    "feature" to featureType.uriSuffix,
+                    "amount" to amount.toString()
+                ),
+                response = mapOf("service" to null),
+                statusCode = 503,
+                errorCode = "APOS_SERVICE_NOT_CONNECTED",
+                message = "Service APOS belum terhubung",
+                success = false
+            )
             Toast.makeText(this, "Service APOS belum terhubung, coba lagi sebentar", Toast.LENGTH_SHORT).show()
             return
         }
 
         val aposState = runCatching { service.getAposState(featureType.uriSuffix) }.getOrNull()
+        logAposEvent(
+            call = APOS_GET_STATE_CALL,
+            request = mapOf("event" to "APOS_GET_STATE", "feature" to featureType.uriSuffix),
+            response = mapOf("apos_state" to aposState),
+            statusCode = if (aposState == null) 500 else 200,
+            errorCode = if (aposState == null) "APOS_STATE_NULL" else null,
+            message = aposStateLabel(aposState),
+            success = aposState == APOS_READY_STATE
+        )
         when (aposState) {
             APOS_READY_STATE -> Unit
             SETTLEMENT_REQUIRED_STATE -> {
@@ -1363,7 +1388,7 @@ class PaymentActivity : AppCompatActivity() {
         val partnerRefId = transactionId()
         val transactionData = prepareTransactionData(partnerRefId, amount)
         val intent = Intent(Intent.ACTION_VIEW).apply {
-            data = Uri.parse("android-app://com.bca.apos/${featureType.uriSuffix}")
+            data = Uri.parse("android-app://$DEFAULT_APOS_PACKAGE/${featureType.uriSuffix}")
                 .buildUpon()
                 .appendQueryParameter("TRANSACTION_DATA", transactionData)
                 .build()
@@ -1372,6 +1397,20 @@ class PaymentActivity : AppCompatActivity() {
 
         pendingPartnerRefId = partnerRefId
         didLaunchApos = true
+        logAposEvent(
+            call = "android-app://$DEFAULT_APOS_PACKAGE/${featureType.uriSuffix}",
+            request = mapOf(
+                "event" to "APOS_DEEP_LINK",
+                "partner_ref_id" to partnerRefId,
+                "amount" to amount.toString(),
+                "feature" to featureType.uriSuffix,
+                "transaction_data_length" to transactionData?.length?.toString()
+            ),
+            response = mapOf("deeplink" to "android-app://$DEFAULT_APOS_PACKAGE/${featureType.uriSuffix}"),
+            statusCode = 200,
+            message = "Launch APOS deep link",
+            success = true
+        )
 
         try {
             startActivity(intent)
@@ -1379,6 +1418,19 @@ class PaymentActivity : AppCompatActivity() {
             didLaunchApos = false
             isCompletingPayment = false
             binding.btnCompletePayment.isEnabled = true
+            logAposEvent(
+                call = "android-app://$DEFAULT_APOS_PACKAGE/${featureType.uriSuffix}",
+                request = mapOf(
+                    "event" to "APOS_DEEP_LINK",
+                    "partner_ref_id" to partnerRefId,
+                    "feature" to featureType.uriSuffix
+                ),
+                response = mapOf("error" to e.message),
+                statusCode = 404,
+                errorCode = "APOS_APP_NOT_FOUND",
+                message = "Aplikasi APOS BCA tidak ditemukan",
+                success = false
+            )
             Toast.makeText(this, "Aplikasi APOS BCA tidak ditemukan", Toast.LENGTH_SHORT).show()
         }
     }
@@ -1403,6 +1455,19 @@ class PaymentActivity : AppCompatActivity() {
         val inquiry = runCatching {
             aposManager.aposService?.inquiry(partnerRefId, InquiryFlag.SINGLE.value)
         }.getOrNull()
+        logAposEvent(
+            call = APOS_INQUIRY_CALL,
+            request = mapOf(
+                "event" to "APOS_INQUIRY",
+                "partner_ref_id" to partnerRefId,
+                "flag" to InquiryFlag.SINGLE.value.toString()
+            ),
+            response = inquiry.toAposResponseMap(),
+            statusCode = if (inquiry == null) 500 else 200,
+            errorCode = if (inquiry == null) "APOS_INQUIRY_NULL" else null,
+            message = inquiry?.txStatus?.value ?: "INQUIRY_NULL",
+            success = inquiry?.txStatus == TransactionStatus.SUCCESS
+        )
 
         when (inquiry?.txStatus) {
             TransactionStatus.SUCCESS -> markPaymentCompleted()
@@ -1500,6 +1565,74 @@ class PaymentActivity : AppCompatActivity() {
         })
     }
 
+    private fun logAposEvent(
+        call: String,
+        request: Map<String, Any?>,
+        response: Map<String, Any?>,
+        statusCode: Int,
+        errorCode: String? = null,
+        message: String? = null,
+        success: Boolean
+    ) {
+        if (userId == 0) return
+
+        ApiClient.api.savePiMlpLog(
+            PiMlpLogRequest(
+                branchName = currentBranchName,
+                userId = userId,
+                userName = userName,
+                call = call,
+                request = request + mapOf(
+                    "order_id" to orderId.toString(),
+                    "is_id" to itemSaleId.toString(),
+                    "pos_id" to ApiClient.getPosId(applicationContext)
+                ),
+                response = response,
+                statusCode = statusCode,
+                errorCode = errorCode,
+                restMessage = message,
+                success = success
+            )
+        ).enqueue(object : Callback<PiMlpLogResponse> {
+            override fun onResponse(call: Call<PiMlpLogResponse>, response: Response<PiMlpLogResponse>) = Unit
+            override fun onFailure(call: Call<PiMlpLogResponse>, t: Throwable) = Unit
+        })
+    }
+
+    private fun PartnerInquiryData?.toAposResponseMap(): Map<String, Any?> {
+        if (this == null) return mapOf("inquiry" to null)
+
+        return mapOf(
+            "partnerRefId" to partnerRefId,
+            "txStatus" to txStatus.value,
+            "txStatusName" to txStatus.name,
+            "featureType" to featureType.uriSuffix,
+            "featureTypeName" to featureType.name,
+            "merchantId" to merchantId,
+            "terminalId" to terminalId,
+            "paymentDateTime" to paymentDateTime,
+            "approvalCode" to approvalCode,
+            "batchNo" to batchNo,
+            "traceNo" to traceNo,
+            "refNo" to refNo,
+            "amount" to amount?.toPlainString(),
+            "tip" to tip?.toPlainString(),
+            "fee" to fee?.toPlainString(),
+            "cash" to cash?.toPlainString(),
+            "dccAmount" to dccAmount?.toPlainString(),
+            "dccTip" to dccTip?.toPlainString(),
+            "acquirerType" to acquirerType
+        )
+    }
+
+    private fun aposStateLabel(state: Int?): String = when (state) {
+        APOS_READY_STATE -> "APOS_READY_STATE"
+        SETTLEMENT_REQUIRED_STATE -> "SETTLEMENT_REQUIRED_STATE"
+        APOS_INACTIVE_STATE -> "APOS_INACTIVE_STATE"
+        null -> "APOS_STATE_NULL"
+        else -> "APOS_STATE_$state"
+    }
+
     private fun localIpAddress(): String? {
         return runCatching {
             NetworkInterface.getNetworkInterfaces().asSequence()
@@ -1546,6 +1679,13 @@ class PaymentActivity : AppCompatActivity() {
         private const val APOS_READY_STATE = 0
         private const val SETTLEMENT_REQUIRED_STATE = 1
         private const val APOS_INACTIVE_STATE = 2
+        private const val APOS_SERVICE_CALL =
+            "android-service://com.bca.apos/com.bca.apos.service.PartnerIntegrationService"
+        private const val APOS_GET_STATE_CALL =
+            "aidl://com.bca.apos.PartnerIntegrationAidl/getAposState"
+        private const val APOS_INQUIRY_CALL =
+            "aidl://com.bca.apos.PartnerIntegrationAidl/inquiry"
+        private const val DEFAULT_APOS_PACKAGE = "com.bca.apos"
         private const val VOUCHER_PREFS_NAME = "payment_voucher_state"
     }
 }
