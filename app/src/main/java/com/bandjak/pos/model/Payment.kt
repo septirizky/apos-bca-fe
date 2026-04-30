@@ -21,6 +21,26 @@ data class PaymentRequest(
     val voucherAmount: Double,
     @SerializedName("apos_partner_ref_id")
     val aposPartnerRefId: String?,
+    @SerializedName("apos_tx_status")
+    val aposTxStatus: String?,
+    @SerializedName("apos_feature_type")
+    val aposFeatureType: String?,
+    @SerializedName("apos_trace_no")
+    val aposTraceNo: String?,
+    @SerializedName("apos_approval_code")
+    val aposApprovalCode: String?,
+    @SerializedName("apos_ref_no")
+    val aposRefNo: String?,
+    @SerializedName("apos_merchant_id")
+    val aposMerchantId: String?,
+    @SerializedName("apos_terminal_id")
+    val aposTerminalId: String?,
+    @SerializedName("apos_acquirer_type")
+    val aposAcquirerType: String?,
+    @SerializedName("pos_id")
+    val posId: String?,
+    @SerializedName("pos_ip")
+    val posIp: String?,
     @SerializedName("u_id")
     val userId: Int,
     @SerializedName("u_name")

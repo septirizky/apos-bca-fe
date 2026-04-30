@@ -28,6 +28,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.button.MaterialButton
 import com.bandjak.pos.R
 import com.bandjak.pos.api.ApiClient
 import com.bandjak.pos.apos.AposManager
@@ -90,6 +91,7 @@ class PaymentActivity : AppCompatActivity() {
     private var voucherAmount = 0.0
     private var selectedFeatureType: FeatureType? = null
     private var pendingPartnerRefId: String? = null
+    private var lastAposInquiry: PartnerInquiryData? = null
     private var didLaunchApos = false
     private var isCompletingPayment = false
     private var lastActionClickAt = 0L
@@ -643,12 +645,12 @@ class PaymentActivity : AppCompatActivity() {
             )
         }
         val emptyView = TextView(this).apply {
-            text = "Downpayment tidak ditemukan"
+            text = "Ketik nama, kontak, atau nominal downpayment"
             textSize = 13f
             setTextColor(Color.parseColor("#94A3B8"))
             gravity = android.view.Gravity.CENTER
             setPadding(0, dp(28), 0, dp(28))
-            visibility = View.GONE
+            visibility = View.VISIBLE
         }
         scroll.addView(listContainer)
         root.addView(scroll)
@@ -690,17 +692,25 @@ class PaymentActivity : AppCompatActivity() {
         root.addView(actionRow)
 
         fun render(keyword: String = "") {
-            val filtered = if (keyword.isBlank()) {
-                downPayments
-            } else {
-                val needle = keyword.lowercase(Locale.ROOT)
-                downPayments.filter {
-                    it.name.lowercase(Locale.ROOT).contains(needle) ||
-                        it.contact.orEmpty().lowercase(Locale.ROOT).contains(needle)
-                }
+            val query = keyword.trim()
+            if (query.isBlank()) {
+                listContainer.removeAllViews()
+                emptyView.text = "Ketik nama, kontak, atau nominal downpayment"
+                emptyView.visibility = View.VISIBLE
+                scroll.visibility = View.GONE
+                return
+            }
+
+            val needle = query.lowercase(Locale.ROOT)
+            val filtered = downPayments.filter {
+                it.name.lowercase(Locale.ROOT).contains(needle) ||
+                    it.contact.orEmpty().lowercase(Locale.ROOT).contains(needle) ||
+                    it.amount.lowercase(Locale.ROOT).contains(needle) ||
+                    formatPlain(it.amount.toDoubleOrNull() ?: 0.0).lowercase(Locale.ROOT).contains(needle)
             }
 
             listContainer.removeAllViews()
+            emptyView.text = "Downpayment tidak ditemukan"
             emptyView.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
             scroll.visibility = if (filtered.isEmpty()) View.GONE else View.VISIBLE
 
@@ -1431,7 +1441,11 @@ class PaymentActivity : AppCompatActivity() {
                 message = "Aplikasi APOS BCA tidak ditemukan",
                 success = false
             )
-            Toast.makeText(this, "Aplikasi APOS BCA tidak ditemukan", Toast.LENGTH_SHORT).show()
+            showTransactionStatus(
+                success = false,
+                title = "Pembayaran Gagal",
+                message = "Aplikasi APOS BCA tidak ditemukan"
+            )
         }
     }
 
@@ -1455,6 +1469,7 @@ class PaymentActivity : AppCompatActivity() {
         val inquiry = runCatching {
             aposManager.aposService?.inquiry(partnerRefId, InquiryFlag.SINGLE.value)
         }.getOrNull()
+        lastAposInquiry = inquiry
         logAposEvent(
             call = APOS_INQUIRY_CALL,
             request = mapOf(
@@ -1474,17 +1489,29 @@ class PaymentActivity : AppCompatActivity() {
             TransactionStatus.PENDING -> {
                 isCompletingPayment = false
                 binding.btnCompletePayment.isEnabled = true
-                Toast.makeText(this, "Transaksi APOS masih pending", Toast.LENGTH_LONG).show()
+                showTransactionStatus(
+                    success = false,
+                    title = "Pembayaran Pending",
+                    message = "Transaksi APOS masih pending"
+                )
             }
             TransactionStatus.NOT_FOUND -> {
                 isCompletingPayment = false
                 binding.btnCompletePayment.isEnabled = true
-                Toast.makeText(this, "Transaksi APOS belum ditemukan", Toast.LENGTH_LONG).show()
+                showTransactionStatus(
+                    success = false,
+                    title = "Pembayaran Gagal",
+                    message = "Transaksi APOS belum ditemukan"
+                )
             }
             else -> {
                 isCompletingPayment = false
                 binding.btnCompletePayment.isEnabled = true
-                Toast.makeText(this, "Transaksi APOS belum berhasil", Toast.LENGTH_LONG).show()
+                showTransactionStatus(
+                    success = false,
+                    title = "Pembayaran Gagal",
+                    message = "Transaksi APOS belum berhasil"
+                )
             }
         }
     }
@@ -1514,6 +1541,16 @@ class PaymentActivity : AppCompatActivity() {
                 voucherId = selectedVoucherId,
                 voucherAmount = voucherAmount,
                 aposPartnerRefId = pendingPartnerRefId,
+                aposTxStatus = lastAposInquiry?.txStatus?.value,
+                aposFeatureType = lastAposInquiry?.featureType?.uriSuffix,
+                aposTraceNo = lastAposInquiry?.traceNo,
+                aposApprovalCode = lastAposInquiry?.approvalCode,
+                aposRefNo = lastAposInquiry?.refNo,
+                aposMerchantId = lastAposInquiry?.merchantId,
+                aposTerminalId = lastAposInquiry?.terminalId,
+                aposAcquirerType = lastAposInquiry?.acquirerType,
+                posId = ApiClient.getPosId(applicationContext),
+                posIp = localIpAddress(),
                 userId = userId,
                 userName = userName
             )
@@ -1521,23 +1558,296 @@ class PaymentActivity : AppCompatActivity() {
             override fun onResponse(call: Call<PaymentResponse>, response: Response<PaymentResponse>) {
                 if (response.isSuccessful) {
                     clearPersistedVoucherState()
-                    Toast.makeText(this@PaymentActivity, "Payment berhasil", Toast.LENGTH_SHORT).show()
-                    releaseOrderLock {
-                        finish()
+                    val responseCounter = response.body()?.data?.itemSaleCounter
+                    if (responseCounter != null && responseCounter > 0) {
+                        itemSaleCounter = responseCounter
                     }
+                    showTransactionStatus(
+                        success = true,
+                        title = "Pembayaran Berhasil!",
+                        message = "Payment berhasil"
+                    )
                 } else {
                     isCompletingPayment = false
                     binding.btnCompletePayment.isEnabled = true
-                    Toast.makeText(this@PaymentActivity, getErrorMessage(response), Toast.LENGTH_SHORT).show()
+                    showTransactionStatus(
+                        success = false,
+                        title = "Pembayaran Gagal",
+                        message = getErrorMessage(response)
+                    )
                 }
             }
 
             override fun onFailure(call: Call<PaymentResponse>, t: Throwable) {
                 isCompletingPayment = false
                 binding.btnCompletePayment.isEnabled = true
-                Toast.makeText(this@PaymentActivity, t.message ?: "Payment gagal", Toast.LENGTH_SHORT).show()
+                showTransactionStatus(
+                    success = false,
+                    title = "Pembayaran Gagal",
+                    message = t.message ?: "Payment gagal"
+                )
             }
         })
+    }
+
+    private fun showTransactionStatus(success: Boolean, title: String, message: String) {
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setCancelable(false)
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(Color.WHITE)
+            setPadding(dp(24), dp(24), dp(24), dp(22))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.MATCH_PARENT
+            )
+        }
+
+        val header = FrameLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(56)
+            )
+        }
+        val close = TextView(this).apply {
+            text = "X"
+            textSize = 30f
+            setTextColor(Color.parseColor("#0F172A"))
+            gravity = android.view.Gravity.CENTER
+            layoutParams = FrameLayout.LayoutParams(dp(48), dp(48), android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL)
+            setOnClickListener {
+                if (success) {
+                    dialog.dismiss()
+                    returnToOrders()
+                } else {
+                    dialog.dismiss()
+                }
+            }
+        }
+        val headerTitle = TextView(this).apply {
+            text = "Status Transaksi"
+            textSize = 22f
+            setTextColor(Color.parseColor("#0F172A"))
+            setTypeface(Typeface.DEFAULT_BOLD)
+            gravity = android.view.Gravity.CENTER
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        }
+        header.addView(headerTitle)
+        header.addView(close)
+
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = android.view.Gravity.CENTER_HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+            )
+        }
+        content.addView(View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(1, dp(48))
+        })
+        content.addView(statusIcon(success))
+        content.addView(TextView(this).apply {
+            text = title
+            textSize = 32f
+            setTextColor(Color.parseColor("#0F172A"))
+            setTypeface(Typeface.DEFAULT_BOLD)
+            gravity = android.view.Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { setMargins(0, dp(24), 0, dp(8)) }
+        })
+        content.addView(TextView(this).apply {
+            text = "Total: ${formatRupiah(totalAmount)}"
+            textSize = 23f
+            setTextColor(Color.parseColor("#1A05A3"))
+            setTypeface(Typeface.DEFAULT_BOLD)
+            gravity = android.view.Gravity.CENTER
+        })
+
+        val infoCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundResource(R.drawable.bg_payment_card)
+            setPadding(dp(22), dp(18), dp(22), dp(18))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { setMargins(0, dp(28), 0, 0) }
+        }
+        infoCard.addView(statusInfoRow("Transaction ID", transactionId()))
+        infoCard.addView(statusDivider())
+        infoCard.addView(statusInfoRow("Metode", paymentMethodSummary()))
+        infoCard.addView(statusDivider())
+        infoCard.addView(statusInfoRow("Meja", tableName))
+        infoCard.addView(statusDivider())
+        infoCard.addView(statusInfoRow("Waktu", SimpleDateFormat("HH:mm", Locale.ENGLISH).format(Date())))
+        if (!success && message.isNotBlank()) {
+            infoCard.addView(statusDivider())
+            infoCard.addView(statusInfoRow("Status", message))
+        }
+        content.addView(infoCard)
+
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+        actions.addView(MaterialButton(this).apply {
+            text = if (success) "Cetak Ulang Struk" else "Lihat Preview Struk"
+            isAllCaps = false
+            textSize = 18f
+            setTypeface(Typeface.DEFAULT_BOLD)
+            setTextColor(Color.parseColor("#1A05A3"))
+            icon = getDrawable(R.drawable.print)
+            iconTint = android.content.res.ColorStateList.valueOf(Color.parseColor("#1A05A3"))
+            iconPadding = dp(10)
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)
+            strokeColor = android.content.res.ColorStateList.valueOf(Color.parseColor("#1A05A3"))
+            strokeWidth = dp(2)
+            cornerRadius = dp(12)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(64)
+            ).apply { setMargins(0, 0, 0, dp(14)) }
+            setOnClickListener { showReceiptPreview() }
+        })
+        actions.addView(MaterialButton(this).apply {
+            text = if (success) "Kembali ke Menu Utama" else "Kembali ke Pembayaran"
+            isAllCaps = false
+            textSize = 18f
+            setTypeface(Typeface.DEFAULT_BOLD)
+            setTextColor(Color.WHITE)
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1A05A3"))
+            cornerRadius = dp(12)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(64)
+            )
+            setOnClickListener {
+                dialog.dismiss()
+                if (success) returnToOrders()
+            }
+        })
+        actions.addView(TextView(this).apply {
+            text = "${currentBranchName.uppercase(Locale.US)} POS"
+            textSize = 16f
+            setTextColor(Color.parseColor("#94A3B8"))
+            gravity = android.view.Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { setMargins(0, dp(28), 0, 0) }
+        })
+
+        root.addView(header)
+        root.addView(content)
+        root.addView(actions)
+        dialog.setContentView(root)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.WHITE))
+        dialog.show()
+        dialog.window?.setLayout(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.MATCH_PARENT
+        )
+    }
+
+    private fun statusIcon(success: Boolean): View {
+        val outer = FrameLayout(this).apply {
+            setBackgroundColor(Color.TRANSPARENT)
+            layoutParams = LinearLayout.LayoutParams(dp(120), dp(120))
+        }
+        val halo = TextView(this).apply {
+            setBackgroundColor(Color.TRANSPARENT)
+            background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                setColor(Color.parseColor(if (success) "#DCFCE7" else "#FEE2E2"))
+            }
+            layoutParams = FrameLayout.LayoutParams(dp(120), dp(120), android.view.Gravity.CENTER)
+        }
+        val circle = TextView(this).apply {
+            text = if (success) "OK" else "!"
+            textSize = if (success) 26f else 48f
+            setTypeface(Typeface.DEFAULT_BOLD)
+            setTextColor(Color.WHITE)
+            gravity = android.view.Gravity.CENTER
+            background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                setColor(Color.parseColor(if (success) "#16A34A" else "#DC2626"))
+            }
+            layoutParams = FrameLayout.LayoutParams(dp(68), dp(68), android.view.Gravity.CENTER)
+        }
+        outer.addView(halo)
+        outer.addView(circle)
+        return outer
+    }
+
+    private fun statusInfoRow(label: String, value: String): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            minimumHeight = dp(38)
+            setPadding(0, dp(6), 0, dp(6))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+        row.addView(TextView(this).apply {
+            text = label
+            textSize = 16f
+            setTextColor(Color.parseColor("#64748B"))
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        })
+        row.addView(TextView(this).apply {
+            text = value
+            textSize = 16f
+            setTextColor(Color.parseColor("#0F172A"))
+            setTypeface(Typeface.DEFAULT_BOLD)
+            gravity = android.view.Gravity.END
+            maxLines = 2
+            ellipsize = TextUtils.TruncateAt.END
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.2f)
+        })
+        return row
+    }
+
+    private fun statusDivider(): View = View(this).apply {
+        setBackgroundColor(Color.parseColor("#E2E8F0"))
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            dp(1)
+        )
+    }
+
+    private fun paymentMethodSummary(): String {
+        val parts = mutableListOf<String>()
+        if (selectedDownPayment != null) parts.add("DP")
+        if (voucherAmount > 0) parts.add("Voucher")
+        selectedFeatureType?.let { parts.add(it.displayName) }
+        return when {
+            parts.isEmpty() -> "-"
+            parts.size == 1 -> parts.first()
+            else -> "Split (${parts.joinToString(" + ")})"
+        }
+    }
+
+    private fun returnToOrders() {
+        val intent = Intent(this, OrdersActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra("U_ID", userId)
+            putExtra("U_NAME", userName)
+        }
+        startActivity(intent)
+        finish()
     }
 
     private fun releaseOrderLock(onDone: () -> Unit) {
@@ -1598,6 +1908,13 @@ class PaymentActivity : AppCompatActivity() {
             override fun onFailure(call: Call<PiMlpLogResponse>, t: Throwable) = Unit
         })
     }
+
+    private val FeatureType.displayName: String
+        get() = when (this) {
+            FeatureType.CARD -> "Card"
+            FeatureType.QRIS -> "QRIS"
+            else -> name
+        }
 
     private fun PartnerInquiryData?.toAposResponseMap(): Map<String, Any?> {
         if (this == null) return mapOf("inquiry" to null)
