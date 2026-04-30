@@ -7,6 +7,15 @@ data class Order(
     @SerializedName("o_id")
     val oId: Int?,
 
+    @SerializedName("is_id")
+    val itemSaleId: Int?,
+
+    @SerializedName("t_id")
+    val tableId: Int?,
+
+    @SerializedName("o_group")
+    val orderGroup: Int?,
+
     @SerializedName("o_start_time")
     val oStartTime: String?,
 

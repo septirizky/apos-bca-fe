@@ -92,7 +92,9 @@ data class DiscountDetail(
     @SerializedName("discount_amount")
     val discountAmount: Double,
     @SerializedName("discount_percent")
-    val discountPercent: Int,
+    val discountPercent: Double,
+    @SerializedName("is_max_discount_capped")
+    val isMaxDiscountCapped: Boolean?,
     @SerializedName("is_applied")
     val isApplied: Boolean
 )

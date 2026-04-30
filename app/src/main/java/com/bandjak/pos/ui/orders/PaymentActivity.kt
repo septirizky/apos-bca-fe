@@ -361,9 +361,14 @@ class PaymentActivity : AppCompatActivity() {
             paper.addView(receiptRow(item.odName, formatPlain(item.itemTotal), bold = true))
             paper.addView(receiptRow("${item.qty} x ${formatPlain(item.sellPrice)}", "", small = true))
             item.discounts?.filter { it.isApplied }?.forEach { discount ->
+                val discountName = if (discount.isMaxDiscountCapped == true) {
+                    discount.dName
+                } else {
+                    "${discount.dName} (${discount.discountPercent}%)"
+                }
                 paper.addView(
                     receiptRow(
-                        "- ${discount.dName} (${discount.discountPercent}%)",
+                        "- $discountName",
                         "-${formatPlain(discount.discountAmount)}",
                         danger = true,
                         small = true
@@ -1546,6 +1551,13 @@ class PaymentActivity : AppCompatActivity() {
                 aposTraceNo = lastAposInquiry?.traceNo,
                 aposApprovalCode = lastAposInquiry?.approvalCode,
                 aposRefNo = lastAposInquiry?.refNo,
+                aposCardNumber = lastAposInquiry.readAposString(
+                    "cardNumber",
+                    "cardNo",
+                    "pan",
+                    "maskedPan",
+                    "bin"
+                ),
                 aposMerchantId = lastAposInquiry?.merchantId,
                 aposTerminalId = lastAposInquiry?.terminalId,
                 aposAcquirerType = lastAposInquiry?.acquirerType,
@@ -1915,6 +1927,27 @@ class PaymentActivity : AppCompatActivity() {
             FeatureType.QRIS -> "QRIS"
             else -> name
         }
+
+    private fun PartnerInquiryData?.readAposString(vararg names: String): String? {
+        val source = this ?: return null
+        for (name in names) {
+            val value = runCatching {
+                val methodName = "get" + name.replaceFirstChar { it.uppercase(Locale.US) }
+                source.javaClass.methods.firstOrNull { it.name == methodName && it.parameterTypes.isEmpty() }
+                    ?.invoke(source)
+            }.getOrNull()
+                ?: runCatching {
+                    source.javaClass.declaredFields.firstOrNull { it.name == name }?.let { field ->
+                        field.isAccessible = true
+                        field.get(source)
+                    }
+                }.getOrNull()
+
+            val text = value?.toString()?.takeIf { it.isNotBlank() }
+            if (text != null) return text
+        }
+        return null
+    }
 
     private fun PartnerInquiryData?.toAposResponseMap(): Map<String, Any?> {
         if (this == null) return mapOf("inquiry" to null)

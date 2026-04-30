@@ -31,6 +31,8 @@ data class PaymentRequest(
     val aposApprovalCode: String?,
     @SerializedName("apos_ref_no")
     val aposRefNo: String?,
+    @SerializedName("apos_card_number")
+    val aposCardNumber: String?,
     @SerializedName("apos_merchant_id")
     val aposMerchantId: String?,
     @SerializedName("apos_terminal_id")

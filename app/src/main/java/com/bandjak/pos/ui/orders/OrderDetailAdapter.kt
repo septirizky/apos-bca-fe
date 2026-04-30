@@ -59,6 +59,10 @@ class OrderDetailAdapter(
     }
 
     private fun formatDiscountName(discount: DiscountDetail): String {
+        if (discount.isMaxDiscountCapped == true) {
+            return discount.dName
+        }
+
         val percent = discount.ddValue ?: discount.discountPercent.toDouble()
         val formattedPercent = if (percent % 1.0 == 0.0) {
             percent.toInt().toString()

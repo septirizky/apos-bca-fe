@@ -19,8 +19,8 @@
     </queries>
 
     <application
-        android:icon="@drawable/bandar_djakarta_logo"
-        android:roundIcon="@drawable/bandar_djakarta_logo"
+        android:icon="@drawable/apos_fusion_logo_512"
+        android:roundIcon="@drawable/apos_fusion_logo_512"
         android:usesCleartextTraffic="true"
         android:label="APOS BANDJAK"
         android:theme="@style/Theme.APOSBandjak">
