@@ -72,4 +72,29 @@ interface PosApi {
     fun savePiMlpLog(
         @Body body: PiMlpLogRequest
     ): Call<PiMlpLogResponse>
+
+    @POST("api/print/bill-initiation")
+    fun printBillInitiation(
+        @Body body: BillInitiationPrintRequest
+    ): Call<BillInitiationPrintResponse>
+
+    @POST("api/print/epson/test")
+    fun testEpsonPrinter(
+        @Body body: EpsonPrintTestRequest
+    ): Call<EpsonPrintResponse>
+
+    @POST("api/print/epson")
+    fun printEpson(
+        @Body body: EpsonPrintTestRequest
+    ): Call<EpsonPrintResponse>
+
+    @POST("api/print/epson/final-bill")
+    fun printFinalBillEpson(
+        @Body body: EpsonFinalBillPrintRequest
+    ): Call<EpsonPrintResponse>
+
+    @GET("api/print/final-bill/{is_id}")
+    fun getFinalBillContent(
+        @Path("is_id") itemSaleId: Int
+    ): Call<FinalBillContentResponse>
 }

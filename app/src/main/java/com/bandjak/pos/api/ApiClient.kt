@@ -10,9 +10,14 @@ object ApiClient {
 
     const val DEFAULT_BASE_URL = "http://10.0.2.2:3000/"
     const val DEFAULT_POS_ID = "APOS1"
+    const val DEFAULT_PRINTER_TARGET = "EDC"
+    const val DEFAULT_EPSON_PRINTER_PORT = 9100
     private const val PREFS_NAME = "apos_api_config"
     private const val KEY_BASE_URL = "base_url"
     private const val KEY_POS_ID = "pos_id"
+    private const val KEY_PRINTER_TARGET = "printer_target"
+    private const val KEY_EPSON_PRINTER_IP = "epson_printer_ip"
+    private const val KEY_EPSON_PRINTER_PORT = "epson_printer_port"
 
     private var appContext: Context? = null
     @Volatile private var retrofit: Retrofit? = null
@@ -54,6 +59,32 @@ object ApiClient {
         return stored.trim().ifBlank { DEFAULT_POS_ID }
     }
 
+    fun getPrinterTarget(context: Context? = appContext): String {
+        val stored = context
+            ?.applicationContext
+            ?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            ?.getString(KEY_PRINTER_TARGET, DEFAULT_PRINTER_TARGET)
+            ?: DEFAULT_PRINTER_TARGET
+        return stored.trim().uppercase().ifBlank { DEFAULT_PRINTER_TARGET }
+    }
+
+    fun getEpsonPrinterIp(context: Context? = appContext): String {
+        return context
+            ?.applicationContext
+            ?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            ?.getString(KEY_EPSON_PRINTER_IP, "")
+            ?.trim()
+            ?: ""
+    }
+
+    fun getEpsonPrinterPort(context: Context? = appContext): Int {
+        return context
+            ?.applicationContext
+            ?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            ?.getInt(KEY_EPSON_PRINTER_PORT, DEFAULT_EPSON_PRINTER_PORT)
+            ?: DEFAULT_EPSON_PRINTER_PORT
+    }
+
     fun getSocketUrl(): String {
         val base = configuredBaseUrl.trimEnd('/')
         return when {
@@ -85,6 +116,17 @@ object ApiClient {
             ?.apply()
     }
 
+    fun savePrinterConfig(context: Context, target: String, epsonIp: String, epsonPort: Int) {
+        init(context)
+        appContext
+            ?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            ?.edit()
+            ?.putString(KEY_PRINTER_TARGET, target.trim().uppercase().ifBlank { DEFAULT_PRINTER_TARGET })
+            ?.putString(KEY_EPSON_PRINTER_IP, epsonIp.trim())
+            ?.putInt(KEY_EPSON_PRINTER_PORT, epsonPort.takeIf { it > 0 } ?: DEFAULT_EPSON_PRINTER_PORT)
+            ?.apply()
+    }
+
     fun saveConfig(context: Context, baseUrl: String, posId: String) {
         saveBaseUrl(context, baseUrl)
         savePosId(context, posId)
@@ -96,6 +138,7 @@ object ApiClient {
 
     fun resetConfig(context: Context) {
         saveConfig(context, DEFAULT_BASE_URL, DEFAULT_POS_ID)
+        savePrinterConfig(context, DEFAULT_PRINTER_TARGET, "", DEFAULT_EPSON_PRINTER_PORT)
     }
 
     fun normalizeBaseUrl(input: String): String {

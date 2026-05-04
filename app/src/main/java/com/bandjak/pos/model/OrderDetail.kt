@@ -9,8 +9,14 @@ data class OrderDetailResponse(
     val itemSaleId: Int?,
     @SerializedName("next_is_counter")
     val nextItemSaleCounter: Int?,
+    @SerializedName("o_start_time")
+    val orderStartTime: String?,
+    @SerializedName("o_pax")
+    val pax: Int?,
     @SerializedName("t_name")
     val tName: String?,
+    @SerializedName("ta_name")
+    val tableAreaName: String?,
     @SerializedName("u_id")
     val waiterId: Int?,
     @SerializedName("u_name")

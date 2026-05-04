@@ -10,7 +10,10 @@ import androidx.appcompat.app.AppCompatActivity
 import com.bandjak.pos.api.ApiClient
 import com.bandjak.pos.databinding.ActivityApiSettingsBinding
 import com.bandjak.pos.model.DatabaseStatusResponse
+import com.bandjak.pos.model.EpsonPrintResponse
+import com.bandjak.pos.model.EpsonPrintTestRequest
 import com.bandjak.pos.realtime.PosRealtimeSocket
+import org.json.JSONObject
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -28,6 +31,7 @@ class ApiSettingsActivity : AppCompatActivity() {
         setupHeader()
         binding.editBaseUrl.setText(ApiClient.getBaseUrl())
         binding.editPosId.setText(ApiClient.getPosId(applicationContext))
+        binding.editEpsonPrinterIp.setText(ApiClient.getEpsonPrinterIp(applicationContext))
         updateSocketPreview()
 
         binding.editBaseUrl.addTextChangedListener(object : TextWatcher {
@@ -38,10 +42,12 @@ class ApiSettingsActivity : AppCompatActivity() {
             override fun afterTextChanged(s: Editable?) {}
         })
         binding.btnTestConnection.setOnClickListener { testConnection() }
+        binding.btnTestEpsonPrinter.setOnClickListener { testEpsonPrinter() }
         binding.btnSave.setOnClickListener { saveConfig() }
         binding.btnResetDefault.setOnClickListener {
             binding.editBaseUrl.setText(ApiClient.DEFAULT_BASE_URL)
             binding.editPosId.setText(ApiClient.DEFAULT_POS_ID)
+            binding.editEpsonPrinterIp.setText("")
             saveConfig()
         }
     }
@@ -77,13 +83,21 @@ class ApiSettingsActivity : AppCompatActivity() {
             return
         }
         val posId = binding.editPosId.text.toString().trim().ifBlank { ApiClient.DEFAULT_POS_ID }
+        val epsonIp = binding.editEpsonPrinterIp.text.toString().trim()
 
         ApiClient.saveConfig(applicationContext, normalizedUrl, posId)
+        ApiClient.savePrinterConfig(
+            applicationContext,
+            ApiClient.DEFAULT_PRINTER_TARGET,
+            epsonIp,
+            ApiClient.DEFAULT_EPSON_PRINTER_PORT
+        )
         PosRealtimeSocket.reconnect()
         binding.editBaseUrl.setText(ApiClient.getBaseUrl())
         binding.editPosId.setText(ApiClient.getPosId(applicationContext))
+        binding.editEpsonPrinterIp.setText(ApiClient.getEpsonPrinterIp(applicationContext))
         updateSocketPreview()
-        Toast.makeText(this, "Konfigurasi API disimpan", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Konfigurasi disimpan", Toast.LENGTH_SHORT).show()
     }
 
     private fun testConnection() {
@@ -110,5 +124,53 @@ class ApiSettingsActivity : AppCompatActivity() {
                 binding.txtConnectionStatus.setTextColor(android.graphics.Color.parseColor("#DC2626"))
             }
         })
+    }
+
+    private fun testEpsonPrinter() {
+        saveConfig()
+
+        val printerIp = ApiClient.getEpsonPrinterIp(applicationContext)
+        if (printerIp.isBlank()) {
+            Toast.makeText(this, "IP printer Epson belum diisi", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        binding.txtPrinterStatus.text = "Mengirim test print..."
+        binding.txtPrinterStatus.setTextColor(android.graphics.Color.parseColor("#64748B"))
+
+        ApiClient.api.testEpsonPrinter(
+            EpsonPrintTestRequest(
+                printerIp = printerIp,
+                printerPort = ApiClient.getEpsonPrinterPort(applicationContext),
+                printerName = "EPSON TM-U220",
+                content = "APOS Epson Test Print\n${ApiClient.getPosId(applicationContext)}\n"
+            )
+        ).enqueue(object : Callback<EpsonPrintResponse> {
+            override fun onResponse(
+                call: Call<EpsonPrintResponse>,
+                response: Response<EpsonPrintResponse>
+            ) {
+                val body = response.body()
+                if (response.isSuccessful && body?.success == true) {
+                    binding.txtPrinterStatus.text = body.message
+                    binding.txtPrinterStatus.setTextColor(android.graphics.Color.parseColor("#059669"))
+                } else {
+                    binding.txtPrinterStatus.text = body?.message ?: parseErrorMessage(response)
+                    binding.txtPrinterStatus.setTextColor(android.graphics.Color.parseColor("#DC2626"))
+                }
+            }
+
+            override fun onFailure(call: Call<EpsonPrintResponse>, t: Throwable) {
+                binding.txtPrinterStatus.text = t.message ?: "Printer tidak terhubung"
+                binding.txtPrinterStatus.setTextColor(android.graphics.Color.parseColor("#DC2626"))
+            }
+        })
+    }
+
+    private fun parseErrorMessage(response: Response<*>): String {
+        return runCatching {
+            val raw = response.errorBody()?.string().orEmpty()
+            JSONObject(raw).optString("message").ifBlank { "Test print gagal" }
+        }.getOrDefault("Test print gagal")
     }
 }

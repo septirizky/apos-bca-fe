@@ -38,6 +38,9 @@ import com.bandjak.pos.model.BranchNameResponse
 import com.bandjak.pos.model.DiscountValidateRequest
 import com.bandjak.pos.model.DiscountValidateResponse
 import com.bandjak.pos.model.DownPayment
+import com.bandjak.pos.model.EpsonFinalBillPrintRequest
+import com.bandjak.pos.model.EpsonPrintResponse
+import com.bandjak.pos.model.FinalBillContentResponse
 import com.bandjak.pos.model.OrderDetailResponse
 import com.bandjak.pos.model.OrderLockRequest
 import com.bandjak.pos.model.OrderLockResponse
@@ -55,6 +58,7 @@ import com.bandjak.pos.ui.login.LoginActivity
 import com.bca.apos.FeatureType
 import com.bca.apos.InquiryFlag
 import com.bca.apos.PartnerInquiryData
+import com.bca.apos.PartnerPrinterListener
 import com.bca.apos.TransactionStatus
 import org.json.JSONObject
 import retrofit2.Call
@@ -1730,7 +1734,9 @@ class PaymentActivity : AppCompatActivity() {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(64)
             ).apply { setMargins(0, 0, 0, dp(14)) }
-            setOnClickListener { showReceiptPreview() }
+            setOnClickListener {
+                if (success) printFinalBillFromLogPrint() else showReceiptPreview()
+            }
         })
         actions.addView(MaterialButton(this).apply {
             text = if (success) "Kembali ke Menu Utama" else "Kembali ke Pembayaran"
@@ -1850,6 +1856,264 @@ class PaymentActivity : AppCompatActivity() {
             parts.size == 1 -> parts.first()
             else -> "Split (${parts.joinToString(" + ")})"
         }
+    }
+
+    private fun printFinalBillFromLogPrint() {
+        val epsonIp = ApiClient.getEpsonPrinterIp(applicationContext)
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(18), dp(18), dp(14))
+            setBackgroundColor(Color.WHITE)
+        }
+
+        content.addView(TextView(this).apply {
+            text = "Cetak Ulang Struk"
+            textSize = 20f
+            setTextColor(Color.parseColor("#0F172A"))
+            setTypeface(Typeface.DEFAULT_BOLD)
+        })
+        content.addView(TextView(this).apply {
+            text = "Pilih tujuan printer untuk struk final."
+            textSize = 13f
+            setTextColor(Color.parseColor("#64748B"))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { setMargins(0, dp(4), 0, dp(16)) }
+        })
+
+        content.addView(finalPrintOptionRow(
+            title = "Epson TM-U220",
+            subtitle = if (epsonIp.isBlank()) "IP belum diatur" else epsonIp,
+            iconColor = "#0EA5E9"
+        ) {
+            dialog.dismiss()
+            printFinalBillToEpson()
+        })
+
+        content.addView(finalPrintOptionRow(
+            title = "EDC APOS",
+            subtitle = "Cetak langsung di mesin EDC",
+            iconColor = "#1A05A3"
+        ) {
+            dialog.dismiss()
+            printFinalBillToEdc()
+        })
+
+        content.addView(TextView(this).apply {
+            text = "BATAL"
+            textSize = 13f
+            setTextColor(Color.parseColor("#1A05A3"))
+            setTypeface(Typeface.DEFAULT_BOLD)
+            gravity = android.view.Gravity.CENTER
+            setPadding(0, dp(14), 0, dp(4))
+            setOnClickListener { dialog.dismiss() }
+        })
+
+        dialog.setContentView(content)
+        dialog.show()
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.86f).toInt(),
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+    }
+
+    private fun finalPrintOptionRow(
+        title: String,
+        subtitle: String,
+        iconColor: String,
+        onClick: () -> Unit
+    ): View {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            setBackgroundResource(R.drawable.bg_payment_card)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { setMargins(0, 0, 0, dp(10)) }
+            setOnClickListener { onClick() }
+
+            addView(ImageView(context).apply {
+                setImageResource(R.drawable.print)
+                setColorFilter(Color.parseColor(iconColor))
+                layoutParams = LinearLayout.LayoutParams(dp(28), dp(28)).apply {
+                    setMargins(0, 0, dp(12), 0)
+                }
+            })
+
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                addView(TextView(context).apply {
+                    text = title
+                    textSize = 15f
+                    setTextColor(Color.parseColor("#0F172A"))
+                    setTypeface(Typeface.DEFAULT_BOLD)
+                })
+                addView(TextView(context).apply {
+                    text = subtitle
+                    textSize = 12f
+                    setTextColor(Color.parseColor("#64748B"))
+                })
+            })
+        }
+    }
+
+    private fun printFinalBillToEpson() {
+        val printerIp = ApiClient.getEpsonPrinterIp(applicationContext)
+        if (printerIp.isBlank()) {
+            Toast.makeText(this, "IP printer Epson belum diisi di Settings", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        ApiClient.api.printFinalBillEpson(
+            EpsonFinalBillPrintRequest(
+                itemSaleId = itemSaleId,
+                printerIp = printerIp,
+                printerPort = ApiClient.getEpsonPrinterPort(applicationContext)
+            )
+        ).enqueue(object : Callback<EpsonPrintResponse> {
+            override fun onResponse(call: Call<EpsonPrintResponse>, response: Response<EpsonPrintResponse>) {
+                val body = response.body()
+                if (response.isSuccessful && body?.success == true) {
+                    Toast.makeText(this@PaymentActivity, body.message, Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this@PaymentActivity, body?.message ?: getErrorMessage(response), Toast.LENGTH_LONG).show()
+                }
+            }
+
+            override fun onFailure(call: Call<EpsonPrintResponse>, t: Throwable) {
+                Toast.makeText(this@PaymentActivity, t.message ?: "Print final bill gagal", Toast.LENGTH_LONG).show()
+            }
+        })
+    }
+
+    private fun printFinalBillToEdc() {
+        ApiClient.api.getFinalBillContent(itemSaleId).enqueue(object : Callback<FinalBillContentResponse> {
+            override fun onResponse(
+                call: Call<FinalBillContentResponse>,
+                response: Response<FinalBillContentResponse>
+            ) {
+                val body = response.body()
+                if (!response.isSuccessful || body?.success != true) {
+                    Toast.makeText(this@PaymentActivity, body?.message ?: getErrorMessage(response), Toast.LENGTH_LONG).show()
+                    return
+                }
+
+                printHtmlToEdc(
+                    plainTextToHtml(body.lpMessage.orEmpty()),
+                    successMessage = "Final bill tercetak di EDC",
+                    errorPrefix = "Print EDC gagal"
+                )
+            }
+
+            override fun onFailure(call: Call<FinalBillContentResponse>, t: Throwable) {
+                Toast.makeText(this@PaymentActivity, t.message ?: "Gagal mengambil final bill", Toast.LENGTH_LONG).show()
+            }
+        })
+    }
+
+    private fun printHtmlToEdc(html: String, successMessage: String, errorPrefix: String) {
+        val service = aposManager.aposService
+        if (service == null) {
+            aposManager.connect()
+            Toast.makeText(this, "Service APOS belum terhubung, coba lagi sebentar", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        runCatching {
+            service.startPrint(
+                html,
+                object : PartnerPrinterListener.Stub() {
+                    override fun onFinish() {
+                        runOnUiThread {
+                            Toast.makeText(this@PaymentActivity, successMessage, Toast.LENGTH_SHORT).show()
+                        }
+                    }
+
+                    override fun onError(code: Int, message: String?) {
+                        runOnUiThread {
+                            Toast.makeText(
+                                this@PaymentActivity,
+                                "$errorPrefix: ${message ?: code.toString()}",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                }
+            )
+        }.onFailure {
+            Toast.makeText(this, it.message ?: errorPrefix, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun plainTextToHtml(text: String): String {
+        fun escape(value: String): String {
+            return value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+        }
+
+        val receiptHtml = text.lines().joinToString("\n") { line ->
+            val escaped = escape(line)
+            when {
+                line.trim().startsWith("Table ") -> "<span class=\"table-line\">$escaped</span>"
+                line.startsWith("Total ") &&
+                    !line.startsWith("Total Bef.") &&
+                    !line.startsWith("Total Discount") -> "<span class=\"grand-total\">$escaped</span>"
+                line == "TAGIHAN SEMENTARA" -> "<span class=\"title-line\">$escaped</span>"
+                else -> escaped
+            }
+        }
+
+        return """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    @page { size: 58mm auto; margin: 0; }
+                    body {
+                        margin: 0;
+                        padding: 0 2mm;
+                        font-family: "Droid Sans Mono", "Courier New", monospace;
+                        font-size: 10px;
+                        line-height: 1.08;
+                        color: #000;
+                    }
+                    pre {
+                        white-space: pre;
+                        margin: 0;
+                        font: inherit;
+                    }
+                    .title-line {
+                        font-weight: 700;
+                    }
+                    .table-line {
+                        display: block;
+                        width: 100%;
+                        text-align: center;
+                        font-size: 18px;
+                        font-weight: 700;
+                        line-height: 1.05;
+                    }
+                    .grand-total {
+                        display: block;
+                        font-size: 19px;
+                        font-weight: 700;
+                        line-height: 1.08;
+                    }
+                </style>
+            </head>
+            <body><pre>$receiptHtml</pre></body>
+            </html>
+        """.trimIndent()
     }
 
     private fun returnToOrders() {
