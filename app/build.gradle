@@ -37,6 +37,12 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all {
+            outputFileName = "APOS_BANDJAK-${variant.buildType.name}-v${variant.versionName}.apk"
+        }
+    }
 }
 
 dependencies {

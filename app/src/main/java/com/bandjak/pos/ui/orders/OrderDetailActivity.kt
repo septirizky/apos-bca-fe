@@ -734,7 +734,7 @@ class OrderDetailActivity : AppCompatActivity() {
         val big = if (includeEpsonCommands) "\u001B!\u0010" else ""
         val center = if (includeEpsonCommands) "\u001Ba\u0001" else ""
         val left = if (includeEpsonCommands) "\u001Ba\u0000" else ""
-        val printWidth = 32
+        val printWidth = 33
         val line = "-".repeat(printWidth)
         val doubleLine = "=".repeat(printWidth)
         val now = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH).format(Date())
@@ -753,6 +753,7 @@ class OrderDetailActivity : AppCompatActivity() {
         } else {
             text.appendLine("TAGIHAN SEMENTARA")
         }
+        text.appendLine()
         text.appendLine("Harap menunggu Final Bill untuk")
         text.appendLine("penyelesaian pembayaran")
         text.appendLine(line)
@@ -786,7 +787,6 @@ class OrderDetailActivity : AppCompatActivity() {
         text.appendLine(formatPrintTotalLine("Food Total", data.summary.foodTotal, printWidth))
         if (data.summary.beverageTotal > 0) text.appendLine(formatPrintTotalLine("Beverage Total", data.summary.beverageTotal, printWidth))
         text.appendLine()
-        text.appendLine(formatPrintTotalLine("Total Bef. Disc.", data.summary.totalBeforeDiscount, printWidth))
         if (data.summary.discountTotal > 0) text.appendLine(formatPrintTotalLine("Total Discount", -data.summary.discountTotal, printWidth))
         text.appendLine(formatPrintTotalLine("Subtotal", data.summary.subtotal, printWidth))
         if (data.summary.cookingCharge > 0) text.appendLine(formatPrintTotalLine("Cooking Charge", data.summary.cookingCharge, printWidth))
@@ -813,10 +813,24 @@ class OrderDetailActivity : AppCompatActivity() {
     }
 
     private fun buildBillHtml(data: OrderDetailResponse): String {
-        val escaped = buildBillText(data, includeEpsonCommands = false)
-            .replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
+        fun escape(value: String): String {
+            return value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+        }
+
+        val receiptHtml = buildBillText(data, includeEpsonCommands = false)
+            .lines()
+            .joinToString("\n") { line ->
+                val escaped = escape(line)
+                when {
+                    line.trim().startsWith("Table ") -> "<span class=\"table-line\">$escaped</span>"
+                    line.startsWith("Total ") -> "<span class=\"grand-total\">$escaped</span>"
+                    line == "TAGIHAN SEMENTARA" -> "<span class=\"title-line\">$escaped</span>"
+                    else -> escaped
+                }
+            }
 
         return """
             <!DOCTYPE html>
@@ -826,9 +840,18 @@ class OrderDetailActivity : AppCompatActivity() {
                     @page { size: 2.8in 11in; margin: 0; }
                     body { margin: 0; padding: 8px; font-family: monospace; font-size: 13px; }
                     pre { white-space: pre-wrap; margin: 0; }
+                    .title-line { font-size: 18px; font-weight: 700; }
+                    .table-line {
+                        display: block;
+                        width: 100%;
+                        text-align: center;
+                        font-size: 18px;
+                        font-weight: 700;
+                    }
+                    .grand-total { font-size: 19px; font-weight: 700; }
                 </style>
             </head>
-            <body><pre>$escaped</pre></body>
+            <body><pre>$receiptHtml</pre></body>
             </html>
         """.trimIndent()
     }
