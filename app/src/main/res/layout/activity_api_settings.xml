@@ -79,26 +79,50 @@
                         android:textSize="13sp"
                         android:textStyle="bold" />
 
-                    <EditText
-                        android:id="@+id/editBaseUrl"
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="52dp"
                         android:layout_marginTop="8dp"
                         android:background="@android:drawable/editbox_background_normal"
                         android:backgroundTint="#F8FAFC"
-                        android:hint="http://10.0.2.2:3000/"
-                        android:inputType="textUri"
-                        android:paddingHorizontal="12dp"
-                        android:singleLine="true"
-                        android:textColor="#0F172A"
-                        android:textSize="14sp" />
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingHorizontal="12dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="http://"
+                            android:textColor="#64748B"
+                            android:textSize="14sp" />
+
+                        <EditText
+                            android:id="@+id/editBaseHost"
+                            android:layout_width="0dp"
+                            android:layout_height="match_parent"
+                            android:layout_weight="1"
+                            android:background="@android:color/transparent"
+                            android:hint="192.168.1.200"
+                            android:inputType="phone"
+                            android:paddingHorizontal="0dp"
+                            android:singleLine="true"
+                            android:textColor="#0F172A"
+                            android:textSize="14sp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text=":3000/"
+                            android:textColor="#64748B"
+                            android:textSize="14sp" />
+                    </LinearLayout>
 
                     <TextView
                         android:id="@+id/txtResolvedSocket"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:text="Realtime: ws://10.0.2.2:3000/realtime"
+                        android:text="Realtime: ws://192.168.1.200:3000/realtime"
                         android:textColor="#64748B"
                         android:textSize="12sp" />
 

@@ -33,7 +33,7 @@ class OrderDetailAdapter(
         val item = items[position]
 
         holder.binding.itemName.text = item.odName
-        holder.binding.itemQtyPrice.text = "${item.qty}x${formatRupiah(item.sellPrice)}"
+        holder.binding.itemQtyPrice.text = "${formatQty(item.qty)}x${formatRupiah(item.sellPrice)}"
         holder.binding.itemTotal.text = formatRupiah(item.itemTotal)
 
         // Set ukuran QtyPrice ke 15sp (naik 2 dari 13sp)
@@ -116,5 +116,13 @@ class OrderDetailAdapter(
         val format = NumberFormat.getCurrencyInstance(Locale("in", "ID"))
         format.maximumFractionDigits = 0
         return format.format(amount).replace("Rp", "Rp ")
+    }
+
+    private fun formatQty(qty: Double): String {
+        return if (qty % 1.0 == 0.0) {
+            qty.toInt().toString()
+        } else {
+            String.format(Locale.US, "%.3f", qty).trimEnd('0').trimEnd('.')
+        }
     }
 }

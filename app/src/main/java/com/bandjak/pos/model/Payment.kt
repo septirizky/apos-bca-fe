@@ -11,6 +11,8 @@ data class PaymentRequest(
     val itemSaleCounter: Int,
     @SerializedName("dp_id")
     val downPaymentId: Int?,
+    @SerializedName("down_payments")
+    val downPayments: List<PaymentDownPayment>,
     @SerializedName("payment_method")
     val paymentMethod: String?,
     @SerializedName("voucher_code")
@@ -19,6 +21,8 @@ data class PaymentRequest(
     val voucherId: Int?,
     @SerializedName("voucher_amount")
     val voucherAmount: Double,
+    @SerializedName("vouchers")
+    val vouchers: List<PaymentVoucher>,
     @SerializedName("apos_partner_ref_id")
     val aposPartnerRefId: String?,
     @SerializedName("apos_tx_status")
@@ -47,6 +51,22 @@ data class PaymentRequest(
     val userId: Int,
     @SerializedName("u_name")
     val userName: String?
+)
+
+data class PaymentVoucher(
+    @SerializedName("voucher_code")
+    val voucherCode: String?,
+    @SerializedName("voucher_id")
+    val voucherId: Int?,
+    @SerializedName("voucher_amount")
+    val voucherAmount: Double
+)
+
+data class PaymentDownPayment(
+    @SerializedName("dp_id")
+    val downPaymentId: Int?,
+    @SerializedName("dp_amount")
+    val downPaymentAmount: Double
 )
 
 data class PaymentResponse(

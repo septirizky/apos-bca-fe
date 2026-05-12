@@ -21,6 +21,7 @@ import retrofit2.Response
 class ApiSettingsActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityApiSettingsBinding
+    private val fixedBasePort = 3000
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -29,12 +30,12 @@ class ApiSettingsActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         setupHeader()
-        binding.editBaseUrl.setText(ApiClient.getBaseUrl())
+        binding.editBaseHost.setText(extractHost(ApiClient.getBaseUrl()))
         binding.editPosId.setText(ApiClient.getPosId(applicationContext))
         binding.editEpsonPrinterIp.setText(ApiClient.getEpsonPrinterIp(applicationContext))
         updateSocketPreview()
 
-        binding.editBaseUrl.addTextChangedListener(object : TextWatcher {
+        binding.editBaseHost.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
                 updateSocketPreview()
@@ -45,7 +46,7 @@ class ApiSettingsActivity : AppCompatActivity() {
         binding.btnTestEpsonPrinter.setOnClickListener { testEpsonPrinter() }
         binding.btnSave.setOnClickListener { saveConfig() }
         binding.btnResetDefault.setOnClickListener {
-            binding.editBaseUrl.setText(ApiClient.DEFAULT_BASE_URL)
+            binding.editBaseHost.setText(extractHost(ApiClient.DEFAULT_BASE_URL))
             binding.editPosId.setText(ApiClient.DEFAULT_POS_ID)
             binding.editEpsonPrinterIp.setText("")
             saveConfig()
@@ -59,29 +60,21 @@ class ApiSettingsActivity : AppCompatActivity() {
     }
 
     private fun updateSocketPreview() {
-        val normalized = ApiClient.normalizeBaseUrl(binding.editBaseUrl.text.toString())
-        val socket = when {
-            normalized.startsWith("https://", ignoreCase = true) ->
-                "wss://${normalized.trimEnd('/').removePrefix("https://")}/realtime"
-            normalized.startsWith("http://", ignoreCase = true) ->
-                "ws://${normalized.trimEnd('/').removePrefix("http://")}/realtime"
-            else -> "ws://${normalized.trimEnd('/')}/realtime"
-        }
-        binding.txtResolvedSocket.text = "Realtime: $socket"
+        val host = binding.editBaseHost.text.toString().trim()
+        binding.txtResolvedSocket.text = "Realtime: ws://$host:$fixedBasePort/realtime"
     }
 
     private fun saveConfig() {
-        val rawUrl = binding.editBaseUrl.text.toString()
-        if (rawUrl.isBlank()) {
-            Toast.makeText(this, "Base URL tidak boleh kosong", Toast.LENGTH_SHORT).show()
+        val host = binding.editBaseHost.text.toString().trim()
+        if (host.isBlank()) {
+            Toast.makeText(this, "IP server tidak boleh kosong", Toast.LENGTH_SHORT).show()
             return
         }
-        val normalizedUrl = ApiClient.normalizeBaseUrl(rawUrl)
-        val parsed = Uri.parse(normalizedUrl)
-        if (parsed.host.isNullOrBlank()) {
-            Toast.makeText(this, "Format Base URL tidak valid", Toast.LENGTH_SHORT).show()
+        if (!isValidIpv4(host)) {
+            Toast.makeText(this, "Format IP server tidak valid", Toast.LENGTH_SHORT).show()
             return
         }
+        val normalizedUrl = buildFixedBaseUrl(host)
         val posId = binding.editPosId.text.toString().trim().ifBlank { ApiClient.DEFAULT_POS_ID }
         val epsonIp = binding.editEpsonPrinterIp.text.toString().trim()
 
@@ -93,11 +86,30 @@ class ApiSettingsActivity : AppCompatActivity() {
             ApiClient.DEFAULT_EPSON_PRINTER_PORT
         )
         PosRealtimeSocket.reconnect()
-        binding.editBaseUrl.setText(ApiClient.getBaseUrl())
+        binding.editBaseHost.setText(extractHost(ApiClient.getBaseUrl()))
         binding.editPosId.setText(ApiClient.getPosId(applicationContext))
         binding.editEpsonPrinterIp.setText(ApiClient.getEpsonPrinterIp(applicationContext))
         updateSocketPreview()
         Toast.makeText(this, "Konfigurasi disimpan", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun buildFixedBaseUrl(host: String): String {
+        return "http://$host:$fixedBasePort/"
+    }
+
+    private fun extractHost(baseUrl: String): String {
+        val parsed = Uri.parse(ApiClient.normalizeBaseUrl(baseUrl))
+        return parsed.host.orEmpty().ifBlank { "192.168.1.200" }
+    }
+
+    private fun isValidIpv4(host: String): Boolean {
+        val parts = host.split(".")
+        return parts.size == 4 && parts.all { part ->
+            part.isNotBlank() &&
+                part.all { it.isDigit() } &&
+                part.length <= 3 &&
+                part.toIntOrNull() in 0..255
+        }
     }
 
     private fun testConnection() {

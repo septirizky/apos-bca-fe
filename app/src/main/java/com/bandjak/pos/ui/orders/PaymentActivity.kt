@@ -48,6 +48,8 @@ import com.bandjak.pos.model.OrderMemberCodeRequest
 import com.bandjak.pos.model.OrderMemberCodeResponse
 import com.bandjak.pos.model.PaymentRequest
 import com.bandjak.pos.model.PaymentResponse
+import com.bandjak.pos.model.PaymentDownPayment
+import com.bandjak.pos.model.PaymentVoucher
 import com.bandjak.pos.model.PiMlpLogRequest
 import com.bandjak.pos.model.PiMlpLogResponse
 import com.bandjak.pos.model.ReceiptInfoResponse
@@ -61,6 +63,7 @@ import com.bca.apos.PartnerInquiryData
 import com.bca.apos.PartnerPrinterListener
 import com.bca.apos.TransactionStatus
 import org.json.JSONObject
+import org.json.JSONArray
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -89,10 +92,18 @@ class PaymentActivity : AppCompatActivity() {
     private var memberCode: String? = null
     private var totalAmount = 0.0
     private var discountAmount = 0.0
-    private var selectedDownPayment: DownPayment? = null
-    private var selectedVoucherId: Int? = null
-    private var voucherCode: String? = null
-    private var voucherAmount = 0.0
+    private val selectedDownPayments = mutableListOf<DownPayment>()
+    private val selectedDownPayment: DownPayment?
+        get() = selectedDownPayments.firstOrNull()
+    private val downPaymentAmount: Double
+        get() = selectedDownPayments.sumOf { it.amount.toDoubleOrNull() ?: 0.0 }
+    private val selectedVouchers = mutableListOf<Voucher>()
+    private val selectedVoucherId: Int?
+        get() = selectedVouchers.firstOrNull()?.id
+    private val voucherCode: String?
+        get() = selectedVouchers.firstOrNull()?.code
+    private val voucherAmount: Double
+        get() = selectedVouchers.sumOf { it.nominal }
     private var selectedFeatureType: FeatureType? = null
     private var pendingPartnerRefId: String? = null
     private var lastAposInquiry: PartnerInquiryData? = null
@@ -363,7 +374,7 @@ class PaymentActivity : AppCompatActivity() {
 
         data.items.forEach { item ->
             paper.addView(receiptRow(item.odName, formatPlain(item.itemTotal), bold = true))
-            paper.addView(receiptRow("${item.qty} x ${formatPlain(item.sellPrice)}", "", small = true))
+            paper.addView(receiptRow("${formatQty(item.qty)} x ${formatPlain(item.sellPrice)}", "", small = true))
             item.discounts?.filter { it.isApplied }?.forEach { discount ->
                 val discountName = if (discount.isMaxDiscountCapped == true) {
                     discount.dName
@@ -404,11 +415,11 @@ class PaymentActivity : AppCompatActivity() {
         if (paidAmount() > 0 || selectedFeatureType != null) {
             paper.addView(receiptDivider())
             paper.addView(sectionTitle("APPLIED PAYMENTS"))
-            selectedDownPayment?.let {
+            selectedDownPayments.forEach {
                 paper.addView(receiptRow("Downpayment ${it.name}", formatPlain(it.amount.toDoubleOrNull() ?: 0.0)))
             }
-            if (voucherAmount > 0) {
-                paper.addView(receiptRow("Voucher ${voucherCode.orEmpty()}", formatPlain(voucherAmount)))
+            selectedVouchers.forEach { voucher ->
+                paper.addView(receiptRow("Voucher ${voucher.code}", formatPlain(voucher.nominal)))
             }
             selectedFeatureType?.let {
                 paper.addView(receiptRow(it.title, formatPlain(remainingAmount())))
@@ -551,9 +562,14 @@ class PaymentActivity : AppCompatActivity() {
             return
         }
 
+        val extraCount = selectedDownPayments.size - 1
         val title = downPayment.name.trim().ifBlank { "Downpayment" }
         val contact = downPayment.contact?.trim().orEmpty()
-        binding.btnDownPayment.text = if (contact.isBlank()) title else "$title\n$contact"
+        binding.btnDownPayment.text = when {
+            extraCount > 0 -> "$title\n+$extraCount lainnya"
+            contact.isBlank() -> title
+            else -> "$title\n$contact"
+        }
         binding.btnDownPayment.maxLines = 2
         binding.btnDownPayment.ellipsize = TextUtils.TruncateAt.END
         binding.btnDownPayment.textSize = 9f
@@ -570,8 +586,7 @@ class PaymentActivity : AppCompatActivity() {
     }
 
     private fun paidAmount(): Double {
-        val dpAmount = selectedDownPayment?.amount?.toDoubleOrNull() ?: 0.0
-        return dpAmount + voucherAmount
+        return downPaymentAmount + voucherAmount
     }
 
     private fun remainingAmount(): Double = max(0.0, totalAmount - paidAmount())
@@ -621,6 +636,18 @@ class PaymentActivity : AppCompatActivity() {
                 setMargins(0, dp(3), 0, dp(12))
             }
         })
+
+        val selectedSection = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(0, 0, 0, dp(12))
+            }
+        }
+        root.addView(selectedSection)
 
         val searchInput = EditText(this).apply {
             hint = "Cari nama / kontak..."
@@ -680,9 +707,9 @@ class PaymentActivity : AppCompatActivity() {
             setTypeface(Typeface.DEFAULT_BOLD)
             gravity = android.view.Gravity.CENTER
             setPadding(dp(14), dp(10), dp(14), dp(10))
-            visibility = if (selectedDownPayment == null) View.GONE else View.VISIBLE
+            visibility = if (selectedDownPayments.isEmpty()) View.GONE else View.VISIBLE
             setOnClickListener {
-                selectedDownPayment = null
+                selectedDownPayments.clear()
                 renderTotals()
                 dialog.dismiss()
             }
@@ -700,7 +727,49 @@ class PaymentActivity : AppCompatActivity() {
         actionRow.addView(cancelButton)
         root.addView(actionRow)
 
+        fun renderSelected() {
+            selectedSection.removeAllViews()
+            selectedSection.visibility = if (selectedDownPayments.isEmpty()) View.GONE else View.VISIBLE
+            removeButton.visibility = if (selectedDownPayments.isEmpty()) View.GONE else View.VISIBLE
+            if (selectedDownPayments.isEmpty()) return
+
+            selectedSection.addView(LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    setMargins(0, 0, 0, dp(8))
+                }
+
+                addView(TextView(this@PaymentActivity).apply {
+                    text = "Terpilih"
+                    textSize = 12f
+                    setTextColor(Color.parseColor("#1A05A3"))
+                    setTypeface(Typeface.DEFAULT_BOLD)
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                })
+                addView(TextView(this@PaymentActivity).apply {
+                    text = formatRupiah(downPaymentAmount)
+                    textSize = 12f
+                    setTextColor(Color.parseColor("#1A05A3"))
+                    setTypeface(Typeface.DEFAULT_BOLD)
+                    gravity = android.view.Gravity.END
+                })
+            })
+
+            selectedDownPayments.forEach { downPayment ->
+                selectedSection.addView(createSelectedDownPaymentRow(downPayment) {
+                    selectedDownPayments.removeAll { it.id == downPayment.id }
+                    renderTotals()
+                    renderSelected()
+                })
+            }
+        }
+
         fun render(keyword: String = "") {
+            renderSelected()
             val query = keyword.trim()
             if (query.isBlank()) {
                 listContainer.removeAllViews()
@@ -749,7 +818,7 @@ class PaymentActivity : AppCompatActivity() {
     }
 
     private fun createDownPaymentRow(downPayment: DownPayment, dialog: Dialog): View {
-        val isSelected = selectedDownPayment?.id != null && selectedDownPayment?.id == downPayment.id
+        val isSelected = selectedDownPayments.any { it.id != null && it.id == downPayment.id }
         val amount = downPayment.amount.toDoubleOrNull() ?: 0.0
 
         return LinearLayout(this).apply {
@@ -766,7 +835,11 @@ class PaymentActivity : AppCompatActivity() {
                 setMargins(0, 0, 0, dp(8))
             }
             setOnClickListener {
-                selectedDownPayment = downPayment
+                if (isSelected) {
+                    Toast.makeText(this@PaymentActivity, "Downpayment sudah dipilih", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                selectedDownPayments.add(downPayment)
                 renderTotals()
                 dialog.dismiss()
             }
@@ -804,6 +877,74 @@ class PaymentActivity : AppCompatActivity() {
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT
                 )
+            })
+        }
+    }
+
+    private fun createSelectedDownPaymentRow(
+        downPayment: DownPayment,
+        onRemove: () -> Unit
+    ): View {
+        val amount = downPayment.amount.toDoubleOrNull() ?: 0.0
+
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setBackgroundResource(R.drawable.bg_applied_downpayment)
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(54)
+            ).apply {
+                setMargins(0, 0, 0, dp(8))
+            }
+
+            addView(LinearLayout(this@PaymentActivity).apply {
+                gravity = android.view.Gravity.CENTER
+                setBackgroundResource(R.drawable.bg_icon_downpayment)
+                layoutParams = LinearLayout.LayoutParams(dp(28), dp(28))
+                addView(ImageView(this@PaymentActivity).apply {
+                    setImageResource(R.drawable.ic_downpayment)
+                    layoutParams = LinearLayout.LayoutParams(dp(17), dp(17))
+                })
+            })
+            addView(LinearLayout(this@PaymentActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    setMargins(dp(10), 0, dp(8), 0)
+                }
+                addView(TextView(this@PaymentActivity).apply {
+                    text = downPayment.name
+                    textSize = 12f
+                    setTextColor(Color.parseColor("#334155"))
+                    setTypeface(Typeface.DEFAULT_BOLD)
+                    maxLines = 1
+                    ellipsize = TextUtils.TruncateAt.END
+                    includeFontPadding = false
+                })
+                addView(TextView(this@PaymentActivity).apply {
+                    text = downPayment.contact?.takeIf { it.isNotBlank() } ?: "Kontak tidak tersedia"
+                    textSize = 10f
+                    setTextColor(Color.parseColor("#64748B"))
+                    maxLines = 1
+                    ellipsize = TextUtils.TruncateAt.END
+                    includeFontPadding = false
+                })
+            })
+            addView(TextView(this@PaymentActivity).apply {
+                text = formatRupiah(amount)
+                textSize = 12f
+                setTextColor(Color.parseColor("#1A05A3"))
+                setTypeface(Typeface.DEFAULT_BOLD)
+                gravity = android.view.Gravity.END
+            })
+            addView(TextView(this@PaymentActivity).apply {
+                text = "x"
+                textSize = 18f
+                setTextColor(Color.parseColor("#94A3B8"))
+                gravity = android.view.Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(dp(32), LinearLayout.LayoutParams.MATCH_PARENT)
+                setOnClickListener { onRemove() }
             })
         }
     }
@@ -976,9 +1117,9 @@ class PaymentActivity : AppCompatActivity() {
         val txtValue = dialog.findViewById<TextView>(R.id.txtVoucherValue)
         var checkedVoucher: Voucher? = null
 
-        editCode.setText(voucherCode.orEmpty())
-        editCode.setSelection(editCode.text.length)
-        btnRemove.visibility = if (voucherCode.isNullOrBlank()) android.view.View.GONE else android.view.View.VISIBLE
+        editCode.setText("")
+        btnRemove.text = "Hapus Semua Voucher"
+        btnRemove.visibility = if (selectedVouchers.isEmpty()) android.view.View.GONE else android.view.View.VISIBLE
         btnApply.isEnabled = false
 
         editCode.addTextChangedListener(object : TextWatcher {
@@ -1007,20 +1148,26 @@ class PaymentActivity : AppCompatActivity() {
                     allowExpired = false,
                     actionButton = btnCheck,
                     onValid = { voucher ->
-                        checkedVoucher = voucher
-                        btnApply.isEnabled = true
-                        showVoucherInfo(
-                            infoCard,
-                            txtGroup,
-                            txtStatus,
-                            txtPeriod,
-                            txtValue,
-                            "Kelompok: ${voucher.setName ?: "-"}",
-                            "Status: ${voucher.status ?: "-"}${if (voucher.expired) " (Expired)" else ""}",
-                            "Berlaku: ${voucher.startDate ?: "-"} s/d ${voucher.endDate ?: "-"}",
-                            formatRupiah(voucher.nominal),
-                            true
-                        )
+                        if (selectedVouchers.any { it.id == voucher.id || it.code.equals(voucher.code, ignoreCase = true) }) {
+                            checkedVoucher = null
+                            btnApply.isEnabled = false
+                            showVoucherInfo(infoCard, txtGroup, txtStatus, txtPeriod, txtValue, "Voucher sudah dipilih", voucher.code, "-", "-", false)
+                        } else {
+                            checkedVoucher = voucher
+                            btnApply.isEnabled = true
+                            showVoucherInfo(
+                                infoCard,
+                                txtGroup,
+                                txtStatus,
+                                txtPeriod,
+                                txtValue,
+                                "Kelompok: ${voucher.setName ?: "-"}",
+                                "Status: ${voucher.status ?: "-"}${if (voucher.expired) " (Expired)" else ""}",
+                                "Berlaku: ${voucher.startDate ?: "-"} s/d ${voucher.endDate ?: "-"}",
+                                formatRupiah(voucher.nominal),
+                                true
+                            )
+                        }
                     },
                     onInvalid = { message ->
                         checkedVoucher = null
@@ -1120,40 +1267,106 @@ class PaymentActivity : AppCompatActivity() {
             return
         }
 
-        selectedVoucherId = voucher.id
-        voucherCode = voucher.code
-        voucherAmount = voucher.nominal
+        if (selectedVouchers.any { it.id == voucher.id || it.code.equals(voucher.code, ignoreCase = true) }) {
+            Toast.makeText(this, "Voucher sudah dipilih", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        selectedVouchers.add(voucher)
         persistVoucherState()
         binding.btnVoucher.text = "VOUCHER"
         renderTotals()
     }
 
     private fun clearVoucher() {
-        selectedVoucherId = null
-        voucherCode = null
-        voucherAmount = 0.0
+        selectedVouchers.clear()
         clearPersistedVoucherState()
         binding.btnVoucher.text = "VOUCHER"
         renderTotals()
     }
 
-    private fun restoreVoucherState() {
-        selectedVoucherId = voucherPrefs.getInt(voucherPrefKey("id"), 0).takeIf { it > 0 }
-        voucherCode = voucherPrefs.getString(voucherPrefKey("code"), null)
-        voucherAmount = Double.fromBits(voucherPrefs.getLong(voucherPrefKey("amount"), 0L))
+    private fun removeVoucher(voucher: Voucher) {
+        selectedVouchers.removeAll { it.id == voucher.id || it.code.equals(voucher.code, ignoreCase = true) }
+        if (selectedVouchers.isEmpty()) {
+            clearPersistedVoucherState()
+        } else {
+            persistVoucherState()
+        }
+        renderTotals()
+    }
 
-        if (voucherCode.isNullOrBlank() || voucherAmount <= 0.0) {
-            selectedVoucherId = null
-            voucherCode = null
-            voucherAmount = 0.0
+    private fun restoreVoucherState() {
+        selectedVouchers.clear()
+
+        val savedVouchers = voucherPrefs.getString(voucherPrefKey("list"), null)
+        if (!savedVouchers.isNullOrBlank()) {
+            runCatching {
+                val array = JSONArray(savedVouchers)
+                for (index in 0 until array.length()) {
+                    val item = array.getJSONObject(index)
+                    val id = item.optInt("id", 0)
+                    val code = item.optString("code")
+                    val nominal = item.optDouble("nominal", 0.0)
+                    if (id > 0 && code.isNotBlank() && nominal > 0.0) {
+                        selectedVouchers.add(
+                            Voucher(
+                                id = id,
+                                code = code,
+                                nominal = nominal,
+                                startDate = item.optString("startDate").takeIf { it.isNotBlank() },
+                                endDate = item.optString("endDate").takeIf { it.isNotBlank() },
+                                status = item.optString("status").takeIf { it.isNotBlank() },
+                                setName = item.optString("setName").takeIf { it.isNotBlank() },
+                                expired = item.optBoolean("expired", false)
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        if (selectedVouchers.isEmpty()) {
+            val legacyId = voucherPrefs.getInt(voucherPrefKey("id"), 0).takeIf { it > 0 }
+            val legacyCode = voucherPrefs.getString(voucherPrefKey("code"), null)
+            val legacyAmount = Double.fromBits(voucherPrefs.getLong(voucherPrefKey("amount"), 0L))
+            if (legacyId != null && !legacyCode.isNullOrBlank() && legacyAmount > 0.0) {
+                selectedVouchers.add(
+                    Voucher(
+                        id = legacyId,
+                        code = legacyCode,
+                        nominal = legacyAmount,
+                        startDate = null,
+                        endDate = null,
+                        status = null,
+                        setName = null,
+                        expired = false
+                    )
+                )
+            }
         }
     }
 
     private fun persistVoucherState() {
+        val array = JSONArray()
+        selectedVouchers.forEach { voucher ->
+            array.put(
+                JSONObject()
+                    .put("id", voucher.id)
+                    .put("code", voucher.code)
+                    .put("nominal", voucher.nominal)
+                    .put("startDate", voucher.startDate)
+                    .put("endDate", voucher.endDate)
+                    .put("status", voucher.status)
+                    .put("setName", voucher.setName)
+                    .put("expired", voucher.expired)
+            )
+        }
+
         voucherPrefs.edit()
             .putInt(voucherPrefKey("id"), selectedVoucherId ?: 0)
             .putString(voucherPrefKey("code"), voucherCode)
             .putLong(voucherPrefKey("amount"), voucherAmount.toBits())
+            .putString(voucherPrefKey("list"), array.toString())
             .apply()
     }
 
@@ -1162,6 +1375,7 @@ class PaymentActivity : AppCompatActivity() {
             .remove(voucherPrefKey("id"))
             .remove(voucherPrefKey("code"))
             .remove(voucherPrefKey("amount"))
+            .remove(voucherPrefKey("list"))
             .apply()
     }
 
@@ -1202,15 +1416,18 @@ class PaymentActivity : AppCompatActivity() {
             )
         }
 
-        if (voucherAmount > 0 && !voucherCode.isNullOrBlank()) {
+        selectedVouchers.firstOrNull()?.let { voucher ->
+            val extraCount = selectedVouchers.size - 1
             addAppliedRow(
                 title = "Voucher",
-                subtitle = voucherCode.orEmpty(),
+                subtitle = voucher.code,
                 amount = formatRupiah(voucherAmount),
                 iconRes = R.drawable.ic_voucher,
                 iconBgRes = R.drawable.bg_icon_voucher,
                 rowBgRes = R.drawable.bg_applied_voucher,
                 amountColor = "#059669",
+                badgeText = if (extraCount > 0) "+$extraCount" else null,
+                onClick = { showVoucherDetailDialog() },
                 onRemove = { clearVoucher() }
             )
         }
@@ -1226,6 +1443,8 @@ class PaymentActivity : AppCompatActivity() {
         iconBgRes: Int,
         rowBgRes: Int,
         amountColor: String,
+        badgeText: String? = null,
+        onClick: (() -> Unit)? = null,
         onRemove: () -> Unit
     ) {
         val row = LinearLayout(this).apply {
@@ -1239,18 +1458,37 @@ class PaymentActivity : AppCompatActivity() {
             ).apply {
                 setMargins(0, 0, 0, dp(8))
             }
+            isClickable = onClick != null
+            isFocusable = onClick != null
+            setOnClickListener { onClick?.invoke() }
         }
 
+        val iconWrapper = FrameLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(36), dp(36))
+        }
         val iconFrame = LinearLayout(this).apply {
             gravity = android.view.Gravity.CENTER
             setBackgroundResource(iconBgRes)
-            layoutParams = LinearLayout.LayoutParams(dp(28), dp(28))
+            layoutParams = FrameLayout.LayoutParams(dp(28), dp(28), android.view.Gravity.CENTER)
         }
         val icon = ImageView(this).apply {
             setImageResource(iconRes)
             layoutParams = LinearLayout.LayoutParams(dp(17), dp(17))
         }
         iconFrame.addView(icon)
+        iconWrapper.addView(iconFrame)
+        if (!badgeText.isNullOrBlank()) {
+            iconWrapper.addView(TextView(this).apply {
+                text = badgeText
+                setTextColor(Color.WHITE)
+                setBackgroundResource(R.drawable.bg_voucher_count_badge)
+                textSize = 9f
+                setTypeface(android.graphics.Typeface.DEFAULT_BOLD)
+                gravity = android.view.Gravity.CENTER
+                includeFontPadding = false
+                layoutParams = FrameLayout.LayoutParams(dp(22), dp(16), android.view.Gravity.TOP or android.view.Gravity.END)
+            })
+        }
 
         val textGroup = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1288,14 +1526,294 @@ class PaymentActivity : AppCompatActivity() {
             textSize = 18f
             gravity = android.view.Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(dp(32), LinearLayout.LayoutParams.MATCH_PARENT)
-            setOnClickListener { onRemove() }
+            setOnClickListener {
+                onRemove()
+            }
         }
 
-        row.addView(iconFrame)
+        row.addView(iconWrapper)
         row.addView(textGroup)
         row.addView(amountView)
         row.addView(removeView)
         binding.appliedSummaryContainer.addView(row)
+    }
+
+    private fun showVoucherDetailDialog() {
+        if (selectedVouchers.isEmpty()) return
+
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(18), dp(18), dp(14))
+            setBackgroundColor(Color.WHITE)
+        }
+        root.addView(TextView(this).apply {
+            text = "Detail Voucher"
+            textSize = 16f
+            setTextColor(Color.parseColor("#1A05A3"))
+            setTypeface(Typeface.DEFAULT_BOLD)
+            gravity = android.view.Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        })
+        root.addView(TextView(this).apply {
+            text = "${selectedVouchers.size} voucher - ${formatRupiah(voucherAmount)}"
+            textSize = 12f
+            setTextColor(Color.parseColor("#64748B"))
+            gravity = android.view.Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(0, dp(4), 0, dp(12))
+            }
+        })
+
+        val listContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        selectedVouchers.forEach { voucher ->
+            listContainer.addView(createVoucherDetailRow(voucher, dialog))
+        }
+
+        val scroll = ScrollView(this).apply {
+            addView(listContainer)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+            )
+        }
+        root.addView(scroll)
+        root.addView(Button(this).apply {
+            text = "Tutup"
+            setTextColor(Color.parseColor("#1A05A3"))
+            setOnClickListener { dialog.dismiss() }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(46)
+            ).apply {
+                setMargins(0, dp(12), 0, 0)
+            }
+        })
+
+        dialog.setContentView(root)
+        dialog.show()
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.86f).toInt(),
+            (resources.displayMetrics.heightPixels * 0.62f).toInt()
+        )
+    }
+
+    private fun createVoucherDetailRow(voucher: Voucher, dialog: Dialog): View {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setBackgroundResource(R.drawable.bg_applied_voucher)
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(54)
+            ).apply {
+                setMargins(0, 0, 0, dp(8))
+            }
+
+            addView(LinearLayout(this@PaymentActivity).apply {
+                gravity = android.view.Gravity.CENTER
+                setBackgroundResource(R.drawable.bg_icon_voucher)
+                layoutParams = LinearLayout.LayoutParams(dp(28), dp(28))
+                addView(ImageView(this@PaymentActivity).apply {
+                    setImageResource(R.drawable.ic_voucher)
+                    layoutParams = LinearLayout.LayoutParams(dp(17), dp(17))
+                })
+            })
+            addView(LinearLayout(this@PaymentActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    setMargins(dp(10), 0, dp(8), 0)
+                }
+                addView(TextView(this@PaymentActivity).apply {
+                    text = voucher.code
+                    setTextColor(Color.parseColor("#334155"))
+                    textSize = 12f
+                    setTypeface(Typeface.DEFAULT_BOLD)
+                    includeFontPadding = false
+                })
+                addView(TextView(this@PaymentActivity).apply {
+                    text = voucher.setName ?: "Voucher"
+                    setTextColor(Color.parseColor("#64748B"))
+                    textSize = 10f
+                    maxLines = 1
+                    ellipsize = TextUtils.TruncateAt.END
+                    includeFontPadding = false
+                })
+            })
+            addView(TextView(this@PaymentActivity).apply {
+                text = formatRupiah(voucher.nominal)
+                setTextColor(Color.parseColor("#059669"))
+                textSize = 12f
+                setTypeface(Typeface.DEFAULT_BOLD)
+                gravity = android.view.Gravity.END
+            })
+            addView(TextView(this@PaymentActivity).apply {
+                text = "x"
+                setTextColor(Color.parseColor("#94A3B8"))
+                textSize = 18f
+                gravity = android.view.Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(dp(32), LinearLayout.LayoutParams.MATCH_PARENT)
+                setOnClickListener {
+                    removeVoucher(voucher)
+                    dialog.dismiss()
+                    if (selectedVouchers.isNotEmpty()) showVoucherDetailDialog()
+                }
+            })
+        }
+    }
+
+    private fun showDownPaymentDetailDialog() {
+        if (selectedDownPayments.isEmpty()) return
+
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(18), dp(18), dp(14))
+            setBackgroundColor(Color.WHITE)
+        }
+        root.addView(TextView(this).apply {
+            text = "Detail Downpayment"
+            textSize = 16f
+            setTextColor(Color.parseColor("#1A05A3"))
+            setTypeface(Typeface.DEFAULT_BOLD)
+            gravity = android.view.Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        })
+        root.addView(TextView(this).apply {
+            text = "${selectedDownPayments.size} downpayment - ${formatRupiah(downPaymentAmount)}"
+            textSize = 12f
+            setTextColor(Color.parseColor("#64748B"))
+            gravity = android.view.Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(0, dp(4), 0, dp(12))
+            }
+        })
+
+        val listContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        selectedDownPayments.forEach { downPayment ->
+            listContainer.addView(createDownPaymentDetailRow(downPayment, dialog))
+        }
+
+        val scroll = ScrollView(this).apply {
+            addView(listContainer)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+            )
+        }
+        root.addView(scroll)
+        root.addView(Button(this).apply {
+            text = "Tutup"
+            setTextColor(Color.parseColor("#1A05A3"))
+            setOnClickListener { dialog.dismiss() }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(46)
+            ).apply {
+                setMargins(0, dp(12), 0, 0)
+            }
+        })
+
+        dialog.setContentView(root)
+        dialog.show()
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.86f).toInt(),
+            (resources.displayMetrics.heightPixels * 0.62f).toInt()
+        )
+    }
+
+    private fun createDownPaymentDetailRow(downPayment: DownPayment, dialog: Dialog): View {
+        val amount = downPayment.amount.toDoubleOrNull() ?: 0.0
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setBackgroundResource(R.drawable.bg_applied_downpayment)
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(54)
+            ).apply {
+                setMargins(0, 0, 0, dp(8))
+            }
+
+            addView(LinearLayout(this@PaymentActivity).apply {
+                gravity = android.view.Gravity.CENTER
+                setBackgroundResource(R.drawable.bg_icon_downpayment)
+                layoutParams = LinearLayout.LayoutParams(dp(28), dp(28))
+                addView(ImageView(this@PaymentActivity).apply {
+                    setImageResource(R.drawable.ic_downpayment)
+                    layoutParams = LinearLayout.LayoutParams(dp(17), dp(17))
+                })
+            })
+            addView(LinearLayout(this@PaymentActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    setMargins(dp(10), 0, dp(8), 0)
+                }
+                addView(TextView(this@PaymentActivity).apply {
+                    text = downPayment.name
+                    setTextColor(Color.parseColor("#334155"))
+                    textSize = 12f
+                    setTypeface(Typeface.DEFAULT_BOLD)
+                    maxLines = 1
+                    ellipsize = TextUtils.TruncateAt.END
+                    includeFontPadding = false
+                })
+                addView(TextView(this@PaymentActivity).apply {
+                    text = downPayment.contact?.takeIf { it.isNotBlank() } ?: "Kontak tidak tersedia"
+                    setTextColor(Color.parseColor("#64748B"))
+                    textSize = 10f
+                    maxLines = 1
+                    ellipsize = TextUtils.TruncateAt.END
+                    includeFontPadding = false
+                })
+            })
+            addView(TextView(this@PaymentActivity).apply {
+                text = formatRupiah(amount)
+                setTextColor(Color.parseColor("#1A05A3"))
+                textSize = 12f
+                setTypeface(Typeface.DEFAULT_BOLD)
+                gravity = android.view.Gravity.END
+            })
+            addView(TextView(this@PaymentActivity).apply {
+                text = "x"
+                setTextColor(Color.parseColor("#94A3B8"))
+                textSize = 18f
+                gravity = android.view.Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(dp(32), LinearLayout.LayoutParams.MATCH_PARENT)
+                setOnClickListener {
+                    selectedDownPayments.removeAll { it.id == downPayment.id }
+                    renderTotals()
+                    dialog.dismiss()
+                    if (selectedDownPayments.isNotEmpty()) showDownPaymentDetailDialog()
+                }
+            })
+        }
     }
 
     private fun clearDiscountMember() {
@@ -1545,10 +2063,23 @@ class PaymentActivity : AppCompatActivity() {
                 itemSaleId = itemSaleId,
                 itemSaleCounter = itemSaleCounter,
                 downPaymentId = selectedDownPayment?.id,
+                downPayments = selectedDownPayments.map {
+                    PaymentDownPayment(
+                        downPaymentId = it.id,
+                        downPaymentAmount = it.amount.toDoubleOrNull() ?: 0.0
+                    )
+                },
                 paymentMethod = selectedFeatureType?.uriSuffix?.uppercase(Locale.US),
                 voucherCode = voucherCode,
                 voucherId = selectedVoucherId,
                 voucherAmount = voucherAmount,
+                vouchers = selectedVouchers.map {
+                    PaymentVoucher(
+                        voucherCode = it.code,
+                        voucherId = it.id,
+                        voucherAmount = it.nominal
+                    )
+                },
                 aposPartnerRefId = pendingPartnerRefId,
                 aposTxStatus = lastAposInquiry?.txStatus?.value,
                 aposFeatureType = lastAposInquiry?.featureType?.uriSuffix,
@@ -1848,7 +2379,7 @@ class PaymentActivity : AppCompatActivity() {
 
     private fun paymentMethodSummary(): String {
         val parts = mutableListOf<String>()
-        if (selectedDownPayment != null) parts.add("DP")
+        if (selectedDownPayments.isNotEmpty()) parts.add("DP")
         if (voucherAmount > 0) parts.add("Voucher")
         selectedFeatureType?.let { parts.add(it.displayName) }
         return when {
@@ -2301,5 +2832,13 @@ class PaymentActivity : AppCompatActivity() {
             "aidl://com.bca.apos.PartnerIntegrationAidl/inquiry"
         private const val DEFAULT_APOS_PACKAGE = "com.bca.apos"
         private const val VOUCHER_PREFS_NAME = "payment_voucher_state"
+    }
+
+    private fun formatQty(qty: Double): String {
+        return if (qty % 1.0 == 0.0) {
+            qty.toInt().toString()
+        } else {
+            String.format(Locale.US, "%.3f", qty).trimEnd('0').trimEnd('.')
+        }
     }
 }

@@ -8,7 +8,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 
 object ApiClient {
 
-    const val DEFAULT_BASE_URL = "http://10.0.2.2:3000/"
+    const val DEFAULT_BASE_URL = "http://192.168.1.200:3000/"
     const val DEFAULT_POS_ID = "APOS1"
     const val DEFAULT_PRINTER_TARGET = "EDC"
     const val DEFAULT_EPSON_PRINTER_PORT = 9100

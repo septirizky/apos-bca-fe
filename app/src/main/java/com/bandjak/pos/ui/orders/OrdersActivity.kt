@@ -317,6 +317,7 @@ class OrdersActivity : AppCompatActivity() {
                 if (response.isSuccessful) {
                     val intent = Intent(this@OrdersActivity, OrderDetailActivity::class.java)
                         .putExtra("ORDER_ID", orderId)
+                        .putExtra("TABLE_NAME", order.table?.tName)
                         .putExtra("WAITER_NAME", order.user?.userName)
                         .putExtra("U_NAME", userName)
                         .putExtra("U_ID", userId)

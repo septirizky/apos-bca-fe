@@ -100,8 +100,9 @@ class OrderDetailActivity : AppCompatActivity() {
         }
 
         currentOrderId = intent.getIntExtra("ORDER_ID", 0)
+        currentTableName = intent.getStringExtra("TABLE_NAME")
         currentWaiterName = intent.getStringExtra("WAITER_NAME")
-        binding.txtTableNumber.text = "Table $currentOrderId"
+        binding.txtTableNumber.text = "Table ${currentTableName ?: currentOrderId.toString()}"
 
         adapter = OrderDetailAdapter(listOf())
         binding.detailRecycler.layoutManager = LinearLayoutManager(this)
@@ -420,11 +421,22 @@ class OrderDetailActivity : AppCompatActivity() {
                     binding.txtItemCount.text = "${data.items.size} Items"
                     updateMemberButton()
                     updateSummary(data)
+                } else {
+                    Toast.makeText(
+                        this@OrderDetailActivity,
+                        getErrorMessage(response),
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
 
             override fun onFailure(call: Call<OrderDetailResponse>, t: Throwable) {
                 Log.e("ORDER_DETAIL", "Detail Load Failed", t)
+                Toast.makeText(
+                    this@OrderDetailActivity,
+                    t.message ?: "Gagal memuat detail order",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         })
     }
@@ -857,7 +869,7 @@ class OrderDetailActivity : AppCompatActivity() {
     }
 
     private fun formatPrintItemLine(item: OrderDetail, width: Int = 32): String {
-        val left = " ${item.qty}    x ${formatNumber(item.sellPrice)}"
+        val left = " ${formatQty(item.qty)}    x ${formatNumber(item.sellPrice)}"
         val right = "= ${formatNumber(item.itemTotal)}"
         return left.padEnd((width - right.length).coerceAtLeast(left.length + 1)) + right
     }
@@ -878,6 +890,14 @@ class OrderDetailActivity : AppCompatActivity() {
             amount.toInt().toString()
         } else {
             String.format(Locale.US, "%.2f", amount).trimEnd('0').trimEnd('.')
+        }
+    }
+
+    private fun formatQty(qty: Double): String {
+        return if (qty % 1.0 == 0.0) {
+            qty.toInt().toString()
+        } else {
+            String.format(Locale.US, "%.3f", qty).trimEnd('0').trimEnd('.')
         }
     }
 

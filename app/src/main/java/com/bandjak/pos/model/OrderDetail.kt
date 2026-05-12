@@ -75,7 +75,7 @@ data class OrderDetail(
     @SerializedName("od_name")
     val odName: String,
     @SerializedName("qty")
-    val qty: Int,
+    val qty: Double,
     @SerializedName("sell_price")
     val sellPrice: Double,
     @SerializedName("item_total")
