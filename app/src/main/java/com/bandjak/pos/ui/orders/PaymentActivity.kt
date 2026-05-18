@@ -167,7 +167,6 @@ class PaymentActivity : AppCompatActivity() {
         binding.btnDownPayment.setSafeClickListener { showDownPaymentDialog() }
         binding.btnDiscount.setSafeClickListener { showDiscountDialog() }
         binding.btnVoucher.setSafeClickListener { showVoucherDialog() }
-        binding.btnPaymentMethod.setSafeClickListener { showPaymentMethodDialog() }
         binding.btnPreviewReceipt.setSafeClickListener {
             showReceiptPreview()
         }
@@ -1381,7 +1380,7 @@ class PaymentActivity : AppCompatActivity() {
 
     private fun voucherPrefKey(field: String): String = "order_${orderId}_voucher_$field"
 
-    private fun showPaymentMethodDialog() {
+    private fun showPaymentMethodDialog(onSelected: ((FeatureType) -> Unit)? = null) {
         val methods = arrayOf("Card", "QRIS")
         val checkedIndex = when (selectedFeatureType) {
             FeatureType.CARD -> 0
@@ -1391,10 +1390,11 @@ class PaymentActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setTitle("Metode Pembayaran")
             .setSingleChoiceItems(methods, checkedIndex) { dialog, which ->
-                selectedFeatureType = if (which == 0) FeatureType.CARD else FeatureType.QRIS
-                binding.btnPaymentMethod.text = methods[which]
+                val featureType = if (which == 0) FeatureType.CARD else FeatureType.QRIS
+                selectedFeatureType = featureType
                 renderAppliedSummary()
                 dialog.dismiss()
+                onSelected?.invoke(featureType)
             }
             .show()
     }
@@ -1855,13 +1855,9 @@ class PaymentActivity : AppCompatActivity() {
             return
         }
 
-        val featureType = selectedFeatureType
-        if (featureType == null) {
-            Toast.makeText(this, "Pilih metode pembayaran dulu", Toast.LENGTH_SHORT).show()
-            return
+        showPaymentMethodDialog { featureType ->
+            launchAposPayment(featureType, amountToPay)
         }
-
-        launchAposPayment(featureType, amountToPay)
     }
 
     private fun launchAposPayment(featureType: FeatureType, amount: Long) {

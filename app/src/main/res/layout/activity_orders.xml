@@ -65,6 +65,17 @@
                 android:textColor="#1E00A8"
                 android:textSize="12sp"
                 android:textStyle="bold" />
+
+            <ImageButton
+                android:id="@+id/btnRefreshOrders"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_orders_count_chip"
+                android:contentDescription="Refresh orders"
+                android:padding="8dp"
+                android:src="@drawable/ic_refresh"
+                app:tint="#1E00A8" />
         </LinearLayout>
 
         <LinearLayout

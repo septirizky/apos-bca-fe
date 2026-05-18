@@ -82,6 +82,11 @@ class OrdersActivity : AppCompatActivity() {
 
         binding.ordersRecycler.layoutManager = GridLayoutManager(this, 2)
         binding.ordersRecycler.adapter = adapter
+        binding.btnRefreshOrders.setOnClickListener {
+            updateHeaderDateTime()
+            loadBranchName()
+            loadOrders()
+        }
 
         loadBranchName()
         loadOrders()
@@ -401,13 +406,20 @@ class OrdersActivity : AppCompatActivity() {
     }
 
     private fun loadOrders() {
+        binding.btnRefreshOrders.isEnabled = false
+        binding.btnRefreshOrders.alpha = 0.55f
         ApiClient.api.getOrders().enqueue(object : Callback<OrdersResponse> {
             override fun onResponse(call: Call<OrdersResponse>, response: Response<OrdersResponse>) {
+                binding.btnRefreshOrders.isEnabled = true
+                binding.btnRefreshOrders.alpha = 1f
                 allOrders = response.body()?.orders ?: listOf()
                 renderOrders()
             }
             override fun onFailure(call: Call<OrdersResponse>, t: Throwable) {
+                binding.btnRefreshOrders.isEnabled = true
+                binding.btnRefreshOrders.alpha = 1f
                 t.printStackTrace()
+                Toast.makeText(this@OrdersActivity, t.message ?: "Gagal memuat order", Toast.LENGTH_SHORT).show()
             }
         })
     }
