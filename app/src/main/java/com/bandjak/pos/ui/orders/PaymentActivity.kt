@@ -10,6 +10,8 @@ import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.text.Editable
 import android.text.TextUtils
@@ -28,6 +30,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import com.bandjak.pos.BuildConfig
 import com.google.android.material.button.MaterialButton
 import com.bandjak.pos.R
 import com.bandjak.pos.api.ApiClient
@@ -113,6 +116,7 @@ class PaymentActivity : AppCompatActivity() {
     private var currentBranchName = "BANDAR DJAKARTA"
     private var receiptInfoLines = listOf<String>()
     private var currentOrderDetail: OrderDetailResponse? = null
+    private val aposConnectHandler = Handler(Looper.getMainLooper())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -151,6 +155,8 @@ class PaymentActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        aposManager.onConnected = null
+        aposConnectHandler.removeCallbacksAndMessages(null)
         aposManager.disconnect()
         super.onDestroy()
     }
@@ -1866,6 +1872,19 @@ class PaymentActivity : AppCompatActivity() {
 
         val service = aposManager.aposService
         if (service == null) {
+            waitForAposService(featureType, amount)
+            return
+        }
+
+        continueAposPayment(featureType, amount, service)
+    }
+
+    private fun waitForAposService(featureType: FeatureType, amount: Long) {
+        var completed = false
+        val timeout = Runnable {
+            if (completed) return@Runnable
+            completed = true
+            aposManager.onConnected = null
             aposManager.connect()
             isCompletingPayment = false
             binding.btnCompletePayment.isEnabled = true
@@ -1883,9 +1902,26 @@ class PaymentActivity : AppCompatActivity() {
                 success = false
             )
             Toast.makeText(this, "Service APOS belum terhubung, coba lagi sebentar", Toast.LENGTH_SHORT).show()
-            return
         }
 
+        aposManager.onConnected = {
+            runOnUiThread {
+                if (completed) return@runOnUiThread
+                val connectedService = aposManager.aposService
+                if (connectedService == null) return@runOnUiThread
+                completed = true
+                aposManager.onConnected = null
+                aposConnectHandler.removeCallbacks(timeout)
+                continueAposPayment(featureType, amount, connectedService)
+            }
+        }
+
+        aposManager.connect()
+        aposConnectHandler.postDelayed(timeout, 2500)
+        Toast.makeText(this, "Menghubungkan service APOS...", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun continueAposPayment(featureType: FeatureType, amount: Long, service: com.bca.apos.PartnerIntegrationAidl) {
         val aposState = runCatching { service.getAposState(featureType.uriSuffix) }.getOrNull()
         logAposEvent(
             call = APOS_GET_STATE_CALL,
@@ -1921,7 +1957,7 @@ class PaymentActivity : AppCompatActivity() {
         val partnerRefId = transactionId()
         val transactionData = prepareTransactionData(partnerRefId, amount)
         val intent = Intent(Intent.ACTION_VIEW).apply {
-            data = Uri.parse("android-app://$DEFAULT_APOS_PACKAGE/${featureType.uriSuffix}")
+            data = Uri.parse("android-app://${BuildConfig.BCA_APOS_PACKAGE_NAME}/${featureType.uriSuffix}")
                 .buildUpon()
                 .appendQueryParameter("TRANSACTION_DATA", transactionData)
                 .build()
@@ -1931,7 +1967,7 @@ class PaymentActivity : AppCompatActivity() {
         pendingPartnerRefId = partnerRefId
         didLaunchApos = true
         logAposEvent(
-            call = "android-app://$DEFAULT_APOS_PACKAGE/${featureType.uriSuffix}",
+            call = "android-app://${BuildConfig.BCA_APOS_PACKAGE_NAME}/${featureType.uriSuffix}",
             request = mapOf(
                 "event" to "APOS_DEEP_LINK",
                 "partner_ref_id" to partnerRefId,
@@ -1939,7 +1975,10 @@ class PaymentActivity : AppCompatActivity() {
                 "feature" to featureType.uriSuffix,
                 "transaction_data_length" to transactionData?.length?.toString()
             ),
-            response = mapOf("deeplink" to "android-app://$DEFAULT_APOS_PACKAGE/${featureType.uriSuffix}"),
+            response = mapOf(
+                "deeplink" to "android-app://${BuildConfig.BCA_APOS_PACKAGE_NAME}/${featureType.uriSuffix}",
+                "service_package" to (aposManager.aposPackageName ?: BuildConfig.BCA_APOS_PACKAGE_NAME)
+            ),
             statusCode = 200,
             message = "Launch APOS deep link",
             success = true
@@ -1952,7 +1991,7 @@ class PaymentActivity : AppCompatActivity() {
             isCompletingPayment = false
             binding.btnCompletePayment.isEnabled = true
             logAposEvent(
-                call = "android-app://$DEFAULT_APOS_PACKAGE/${featureType.uriSuffix}",
+                call = "android-app://${BuildConfig.BCA_APOS_PACKAGE_NAME}/${featureType.uriSuffix}",
                 request = mapOf(
                     "event" to "APOS_DEEP_LINK",
                     "partner_ref_id" to partnerRefId,
@@ -2826,7 +2865,6 @@ class PaymentActivity : AppCompatActivity() {
             "aidl://com.bca.apos.PartnerIntegrationAidl/getAposState"
         private const val APOS_INQUIRY_CALL =
             "aidl://com.bca.apos.PartnerIntegrationAidl/inquiry"
-        private const val DEFAULT_APOS_PACKAGE = "com.bca.apos"
         private const val VOUCHER_PREFS_NAME = "payment_voucher_state"
     }
 

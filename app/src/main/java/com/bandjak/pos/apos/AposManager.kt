@@ -2,6 +2,7 @@ package com.bandjak.pos.apos
 
 import android.content.*
 import android.os.IBinder
+import com.bandjak.pos.BuildConfig
 import com.bca.apos.PartnerIntegrationAidl
 
 class AposManager(private val context: Context) {
@@ -11,6 +12,7 @@ class AposManager(private val context: Context) {
     var aposPackageName: String? = null
         private set
     private var isBound = false
+    private var isBinding = false
     var onConnected: (() -> Unit)? = null
 
     private val serviceConnection = object : ServiceConnection {
@@ -19,6 +21,7 @@ class AposManager(private val context: Context) {
             aposService = PartnerIntegrationAidl.Stub.asInterface(service)
             aposPackageName = name?.packageName
             isBound = true
+            isBinding = false
             onConnected?.invoke()
         }
 
@@ -26,11 +29,12 @@ class AposManager(private val context: Context) {
             aposService = null
             aposPackageName = null
             isBound = false
+            isBinding = false
         }
     }
 
     fun connect() {
-        if (isBound) return
+        if (isBound || isBinding) return
 
         for (packageName in APOS_PACKAGE_CANDIDATES) {
             val intent = Intent().apply {
@@ -43,37 +47,24 @@ class AposManager(private val context: Context) {
 
             if (bound) {
                 aposPackageName = packageName
-                isBound = true
+                isBinding = true
                 return
             }
         }
     }
 
     fun disconnect() {
-        if (!isBound) return
+        if (!isBound && !isBinding) return
 
         context.unbindService(serviceConnection)
         isBound = false
+        isBinding = false
         aposService = null
         aposPackageName = null
     }
 
     companion object {
         private const val APOS_SERVICE_CLASS = "com.bca.apos.service.PartnerIntegrationService"
-        private val APOS_PACKAGE_CANDIDATES = listOf(
-            "com.bca.apos",
-            "com.bca.apos.ingenico",
-            "com.bca.apos.pax",
-            "com.bca.apos.verifone",
-            "com.bca.apos.castles",
-            "com.bca.apos.dev.ingenico",
-            "com.bca.apos.dev.pax",
-            "com.bca.apos.dev.verifone",
-            "com.bca.apos.dev.castles",
-            "com.bca.apos.staging.ingenico",
-            "com.bca.apos.staging.pax",
-            "com.bca.apos.staging.verifone",
-            "com.bca.apos.staging.castles"
-        )
+        private val APOS_PACKAGE_CANDIDATES = listOf(BuildConfig.BCA_APOS_PACKAGE_NAME)
     }
 }

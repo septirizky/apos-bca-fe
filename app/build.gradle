@@ -20,6 +20,32 @@ android {
     buildFeatures {
         aidl true
         viewBinding true
+        buildConfig true
+    }
+
+    flavorDimensions "aposDevice"
+
+    productFlavors {
+        ingenico {
+            dimension "aposDevice"
+            applicationIdSuffix ".ingenico"
+            buildConfigField "String", "BCA_APOS_PACKAGE_NAME", "\"com.bca.apos.staging.ingenico\""
+        }
+        castles {
+            dimension "aposDevice"
+            applicationIdSuffix ".castles"
+            buildConfigField "String", "BCA_APOS_PACKAGE_NAME", "\"com.bca.apos.staging.castles\""
+        }
+        pax {
+            dimension "aposDevice"
+            applicationIdSuffix ".pax"
+            buildConfigField "String", "BCA_APOS_PACKAGE_NAME", "\"com.bca.apos.staging.pax\""
+        }
+        verifone {
+            dimension "aposDevice"
+            applicationIdSuffix ".verifone"
+            buildConfigField "String", "BCA_APOS_PACKAGE_NAME", "\"com.bca.apos.staging.verifone\""
+        }
     }
 
     buildTypes {
@@ -40,7 +66,8 @@ android {
 
     applicationVariants.all { variant ->
         variant.outputs.all {
-            outputFileName = "APOS_BANDJAK-${variant.buildType.name}-v${variant.versionName}.apk"
+            def flavor = variant.flavorName ?: "universal"
+            outputFileName = "APOS_BANDJAK-${flavor}-${variant.buildType.name}-v${variant.versionName}.apk"
         }
     }
 }
