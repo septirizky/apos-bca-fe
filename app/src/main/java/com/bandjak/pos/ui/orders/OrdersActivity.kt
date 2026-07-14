@@ -21,6 +21,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.GridLayoutManager
 import com.bandjak.pos.R
 import com.bandjak.pos.api.ApiClient
+import com.bandjak.pos.apos.AposPendingStore
 import com.bandjak.pos.databinding.ActivityOrdersBinding
 import com.bandjak.pos.model.BranchNameResponse
 import com.bandjak.pos.model.Order
@@ -44,6 +45,7 @@ class OrdersActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityOrdersBinding
     private lateinit var adapter: OrdersAdapter
+    private lateinit var pendingStore: AposPendingStore
     private var allOrders: List<Order> = listOf()
     private val splitOrderTotals = mutableMapOf<Int, Double>()
     private val autoRefreshTimer = AutoRefreshTimer {
@@ -88,6 +90,16 @@ class OrdersActivity : AppCompatActivity() {
             loadOrders()
         }
 
+        pendingStore = AposPendingStore(applicationContext)
+        binding.btnManualInquiry.setOnClickListener {
+            startActivity(
+                Intent(this, ManualInquiryActivity::class.java)
+                    .putExtra("U_ID", userId)
+                    .putExtra("U_NAME", userName)
+                    .putExtra("BRANCH_NAME", binding.globalHeader.headerBranchName.text.toString())
+            )
+        }
+
         loadBranchName()
         loadOrders()
 
@@ -99,6 +111,18 @@ class OrdersActivity : AppCompatActivity() {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
         })
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateManualInquiryChip()
+    }
+
+    /** Jumlah transaksi APOS yang belum final — kasir harus bisa melihatnya tanpa membuka layarnya. */
+    private fun updateManualInquiryChip() {
+        val pending = pendingStore.count()
+        binding.btnManualInquiry.text =
+            if (pending > 0) "Cek Transaksi ($pending)" else "Cek Transaksi"
     }
 
     private fun handleOrderClick(order: Order, userName: String, userId: Int) {

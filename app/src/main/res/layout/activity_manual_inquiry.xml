@@ -37,23 +37,23 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Active Table Orders"
+                    android:text="Manual Inquiry"
                     android:textColor="#0F172A"
                     android:textSize="18sp"
                     android:textStyle="bold" />
 
                 <TextView
-                    android:id="@+id/ordersSummaryText"
+                    android:id="@+id/inquirySummaryText"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="Memuat order..."
+                    android:text="Transaksi yang hasilnya belum final"
                     android:textColor="#64748B"
                     android:textSize="12sp" />
             </LinearLayout>
 
             <TextView
-                android:id="@+id/ordersCountChip"
+                android:id="@+id/inquiryCountChip"
                 android:layout_width="wrap_content"
                 android:layout_height="32dp"
                 android:background="@drawable/bg_orders_count_chip"
@@ -61,72 +61,21 @@
                 android:minWidth="72dp"
                 android:paddingStart="12dp"
                 android:paddingEnd="12dp"
-                android:text="0 Meja"
+                android:text="0 Transaksi"
                 android:textColor="#1E00A8"
                 android:textSize="12sp"
                 android:textStyle="bold" />
 
-            <TextView
-                android:id="@+id/btnManualInquiry"
-                android:layout_width="wrap_content"
-                android:layout_height="32dp"
-                android:layout_marginStart="8dp"
-                android:background="@drawable/bg_order_pax_chip"
-                android:clickable="true"
-                android:focusable="true"
-                android:foreground="?android:attr/selectableItemBackground"
-                android:gravity="center"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:text="Cek Transaksi"
-                android:textColor="#9A3412"
-                android:textSize="12sp"
-                android:textStyle="bold" />
-
             <ImageButton
-                android:id="@+id/btnRefreshOrders"
+                android:id="@+id/btnRefreshInquiry"
                 android:layout_width="32dp"
                 android:layout_height="32dp"
                 android:layout_marginStart="8dp"
                 android:background="@drawable/bg_orders_count_chip"
-                android:contentDescription="Refresh orders"
+                android:contentDescription="Muat ulang daftar"
                 android:padding="8dp"
                 android:src="@drawable/ic_refresh"
                 app:tint="#1E00A8" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:layout_marginTop="12dp"
-            android:background="@drawable/bg_orders_search"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingStart="14dp"
-            android:paddingEnd="14dp">
-
-            <ImageView
-                android:layout_width="18dp"
-                android:layout_height="18dp"
-                android:contentDescription="Search"
-                android:src="@drawable/ic_search"
-                app:tint="#94A3B8" />
-
-            <EditText
-                android:id="@+id/searchInput"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_marginStart="10dp"
-                android:layout_weight="1"
-                android:background="@android:color/transparent"
-                android:hint="Cari meja, area, atau section"
-                android:imeOptions="actionSearch"
-                android:inputType="text"
-                android:padding="0dp"
-                android:singleLine="true"
-                android:textColor="#0F172A"
-                android:textColorHint="#94A3B8"
-                android:textSize="13sp" />
         </LinearLayout>
     </LinearLayout>
 
@@ -136,7 +85,7 @@
         android:layout_weight="1">
 
         <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/ordersRecycler"
+            android:id="@+id/pendingRecycler"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:clipToPadding="false"
@@ -166,22 +115,20 @@
                 android:textStyle="bold" />
 
             <TextView
-                android:id="@+id/emptyStateTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="14dp"
-                android:text="Tidak ada order"
+                android:text="Tidak ada transaksi tertunda"
                 android:textColor="#0F172A"
                 android:textSize="16sp"
                 android:textStyle="bold" />
 
             <TextView
-                android:id="@+id/emptyStateMessage"
-                android:layout_width="260dp"
+                android:layout_width="280dp"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:gravity="center"
-                android:text="Order aktif akan muncul di sini."
+                android:text="Transaksi APOS yang hasilnya belum final akan muncul di sini untuk dicek ulang."
                 android:textColor="#64748B"
                 android:textSize="13sp" />
         </LinearLayout>

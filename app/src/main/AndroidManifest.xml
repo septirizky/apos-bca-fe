@@ -57,6 +57,10 @@
         <activity
             android:name="com.bandjak.pos.ui.orders.DownPaymentActivity"/>
 
+        <!-- Manual Inquiry: rekonsiliasi transaksi APOS yang belum final -->
+        <activity
+            android:name="com.bandjak.pos.ui.orders.ManualInquiryActivity"/>
+
     </application>
 
 </manifest>

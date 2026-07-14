@@ -34,8 +34,10 @@ import com.bandjak.pos.BuildConfig
 import com.google.android.material.button.MaterialButton
 import com.bandjak.pos.R
 import com.bandjak.pos.api.ApiClient
+import com.bandjak.pos.apos.AposDeepLink
 import com.bandjak.pos.apos.AposManager
-import com.bandjak.pos.apos.DeepLinkEncryptionUtil
+import com.bandjak.pos.apos.AposPendingStore
+import com.bandjak.pos.apos.AposPendingTransaction
 import com.bandjak.pos.databinding.ActivityPaymentBinding
 import com.bandjak.pos.model.BranchNameResponse
 import com.bandjak.pos.model.DiscountValidateRequest
@@ -84,6 +86,7 @@ class PaymentActivity : AppCompatActivity() {
     private lateinit var binding: ActivityPaymentBinding
     private lateinit var aposManager: AposManager
     private lateinit var voucherPrefs: SharedPreferences
+    private lateinit var pendingStore: AposPendingStore
 
     private var orderId = 0
     private var itemSaleId = 0
@@ -136,6 +139,7 @@ class PaymentActivity : AppCompatActivity() {
         discountAmount = intent.getDoubleExtra("DISCOUNT_AMOUNT", 0.0)
         voucherPrefs = getSharedPreferences(VOUCHER_PREFS_NAME, MODE_PRIVATE)
         restoreVoucherState()
+        pendingStore = AposPendingStore(applicationContext)
 
         aposManager = AposManager(applicationContext)
         aposManager.connect()
@@ -144,6 +148,58 @@ class PaymentActivity : AppCompatActivity() {
         setupInitialView()
         setupActions()
         refreshOrderDetail()
+
+        intent.getStringExtra(EXTRA_RESUME_PARTNER_REF_ID)
+            ?.takeIf { it.isNotBlank() }
+            ?.let { resumeAposInquiry(it) }
+    }
+
+    /**
+     * Melanjutkan transaksi tertunda yang dipilih kasir dari layar Manual Inquiry.
+     *
+     * Sengaja tidak menyalin logika penyelesaian pembayaran: konteks order (voucher, down payment,
+     * diskon) sudah pulih sendiri karena tersimpan per-order, jadi hasil inquiry cukup dialirkan
+     * ke inquiryAposTransaction() → markPaymentCompleted() seperti alur pembayaran normal.
+     */
+    private fun resumeAposInquiry(partnerRefId: String) {
+        pendingPartnerRefId = partnerRefId
+        pendingStore.find(partnerRefId)?.let { pending ->
+            selectedFeatureType = FeatureType.from(pending.featureType)
+        }
+        isCompletingPayment = true
+        binding.btnCompletePayment.isEnabled = false
+
+        if (aposManager.aposService != null) {
+            inquiryAposTransaction()
+            return
+        }
+
+        var completed = false
+        val timeout = Runnable {
+            if (completed) return@Runnable
+            completed = true
+            aposManager.onConnected = null
+            isCompletingPayment = false
+            binding.btnCompletePayment.isEnabled = true
+            Toast.makeText(
+                this,
+                "Service APOS belum terhubung, coba lagi sebentar",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+
+        aposManager.onConnected = {
+            runOnUiThread {
+                if (!completed && aposManager.aposService != null) {
+                    completed = true
+                    aposManager.onConnected = null
+                    aposConnectHandler.removeCallbacks(timeout)
+                    inquiryAposTransaction()
+                }
+            }
+        }
+
+        aposConnectHandler.postDelayed(timeout, APOS_CONNECT_TIMEOUT_MS)
     }
 
     override fun onResume() {
@@ -1917,7 +1973,7 @@ class PaymentActivity : AppCompatActivity() {
         }
 
         aposManager.connect()
-        aposConnectHandler.postDelayed(timeout, 2500)
+        aposConnectHandler.postDelayed(timeout, APOS_CONNECT_TIMEOUT_MS)
         Toast.makeText(this, "Menghubungkan service APOS...", Toast.LENGTH_SHORT).show()
     }
 
@@ -1956,18 +2012,33 @@ class PaymentActivity : AppCompatActivity() {
 
         val partnerRefId = transactionId()
         val transactionData = prepareTransactionData(partnerRefId, amount)
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            data = Uri.parse("android-app://${BuildConfig.BCA_APOS_PACKAGE_NAME}/${featureType.uriSuffix}")
-                .buildUpon()
-                .appendQueryParameter("TRANSACTION_DATA", transactionData)
-                .build()
-            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
-        }
+        // Package APOS yang benar-benar ter-bind (mis. com.bca.apos.castles).
+        val aposPackage = aposManager.aposPackageName ?: BuildConfig.BCA_APOS_PACKAGE_NAME
+        val deepLink = AposDeepLink.url(featureType)
+        val intent = AposDeepLink.intent(aposPackage, featureType, transactionData)
 
         pendingPartnerRefId = partnerRefId
         didLaunchApos = true
+
+        // Catat SEBELUM berpindah ke APOS. Kalau proses aplikasi mati saat kasir masih di layar
+        // APOS, partnerRefId ini satu-satunya cara transaksi tersebut bisa direkonsiliasi lewat
+        // manual inquiry.
+        pendingStore.put(
+            AposPendingTransaction(
+                partnerRefId = partnerRefId,
+                orderId = orderId,
+                itemSaleId = itemSaleId,
+                itemSaleCounter = itemSaleCounter,
+                featureType = featureType.uriSuffix,
+                amount = amount,
+                tableName = tableName,
+                createdAt = System.currentTimeMillis(),
+                lastStatus = AposPendingStore.STATUS_UNRESOLVED
+            )
+        )
+
         logAposEvent(
-            call = "android-app://${BuildConfig.BCA_APOS_PACKAGE_NAME}/${featureType.uriSuffix}",
+            call = deepLink,
             request = mapOf(
                 "event" to "APOS_DEEP_LINK",
                 "partner_ref_id" to partnerRefId,
@@ -1976,8 +2047,8 @@ class PaymentActivity : AppCompatActivity() {
                 "transaction_data_length" to transactionData?.length?.toString()
             ),
             response = mapOf(
-                "deeplink" to "android-app://${BuildConfig.BCA_APOS_PACKAGE_NAME}/${featureType.uriSuffix}",
-                "service_package" to (aposManager.aposPackageName ?: BuildConfig.BCA_APOS_PACKAGE_NAME)
+                "deeplink" to deepLink,
+                "service_package" to aposPackage
             ),
             statusCode = 200,
             message = "Launch APOS deep link",
@@ -1990,8 +2061,11 @@ class PaymentActivity : AppCompatActivity() {
             didLaunchApos = false
             isCompletingPayment = false
             binding.btnCompletePayment.isEnabled = true
+            // APOS tidak pernah terbuka, jadi tidak ada transaksi yang perlu direkonsiliasi.
+            pendingStore.remove(partnerRefId)
+            pendingPartnerRefId = null
             logAposEvent(
-                call = "android-app://${BuildConfig.BCA_APOS_PACKAGE_NAME}/${featureType.uriSuffix}",
+                call = deepLink,
                 request = mapOf(
                     "event" to "APOS_DEEP_LINK",
                     "partner_ref_id" to partnerRefId,
@@ -2014,16 +2088,8 @@ class PaymentActivity : AppCompatActivity() {
     private fun prepareTransactionData(partnerRefId: String, amount: Long): String? {
         val serialNumber = runCatching { aposManager.aposService?.sn }.getOrNull()
             ?: Build.DEVICE
-        val signature = DeepLinkEncryptionUtil().generateSignature(serialNumber)
-        val jsonString = """
-            {
-                "PARTNER_REF_ID": "$partnerRefId",
-                "AMOUNT": "$amount",
-                "SIGNATURE": "$signature"
-            }
-        """.trimIndent()
 
-        return DeepLinkEncryptionUtil().encrypt(jsonString)
+        return AposDeepLink.transactionData(serialNumber, partnerRefId, amount)
     }
 
     private fun inquiryAposTransaction() {
@@ -2045,6 +2111,16 @@ class PaymentActivity : AppCompatActivity() {
             message = inquiry?.txStatus?.value ?: "INQUIRY_NULL",
             success = inquiry?.txStatus == TransactionStatus.SUCCESS
         )
+
+        // Rekam status terakhir supaya kasir bisa melihatnya di daftar transaksi tertunda.
+        // Record baru dihapus setelah pembayaran benar-benar tercatat di backend
+        // (lihat markPaymentCompleted), bukan di sini.
+        if (inquiry?.txStatus != TransactionStatus.SUCCESS) {
+            pendingStore.updateStatus(
+                partnerRefId,
+                inquiry?.txStatus?.value ?: AposPendingStore.STATUS_UNRESOLVED
+            )
+        }
 
         when (inquiry?.txStatus) {
             TransactionStatus.SUCCESS -> markPaymentCompleted()
@@ -2140,6 +2216,8 @@ class PaymentActivity : AppCompatActivity() {
             override fun onResponse(call: Call<PaymentResponse>, response: Response<PaymentResponse>) {
                 if (response.isSuccessful) {
                     clearPersistedVoucherState()
+                    // Transaksi sudah tercatat di backend — tidak lagi perlu direkonsiliasi.
+                    pendingPartnerRefId?.let { pendingStore.remove(it) }
                     val responseCounter = response.body()?.data?.itemSaleCounter
                     if (responseCounter != null && responseCounter > 0) {
                         itemSaleCounter = responseCounter
@@ -2856,6 +2934,10 @@ class PaymentActivity : AppCompatActivity() {
     }
 
     companion object {
+        /** Diisi oleh ManualInquiryActivity untuk melanjutkan transaksi tertunda. */
+        const val EXTRA_RESUME_PARTNER_REF_ID = "RESUME_PARTNER_REF_ID"
+
+        private const val APOS_CONNECT_TIMEOUT_MS = 2500L
         private const val APOS_READY_STATE = 0
         private const val SETTLEMENT_REQUIRED_STATE = 1
         private const val APOS_INACTIVE_STATE = 2
