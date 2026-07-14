@@ -1,6 +1,7 @@
 package com.bandjak.pos.api
 
 import android.content.Context
+import android.net.Uri
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -8,7 +9,12 @@ import retrofit2.converter.gson.GsonConverterFactory
 
 object ApiClient {
 
-    const val DEFAULT_BASE_URL = "http://192.168.1.200:3000/"
+    /**
+     * Port backend. Tidak dapat diubah dari layar Settings dan tidak ditampilkan di sana —
+     * kasir hanya mengisi IP server.
+     */
+    const val FIXED_PORT = 8008
+    const val DEFAULT_BASE_URL = "http://192.168.1.200:8008/"
     const val DEFAULT_POS_ID = "APOS1"
     const val DEFAULT_PRINTER_TARGET = "EDC"
     const val DEFAULT_EPSON_PRINTER_PORT = 9100
@@ -141,6 +147,13 @@ object ApiClient {
         savePrinterConfig(context, DEFAULT_PRINTER_TARGET, "", DEFAULT_EPSON_PRINTER_PORT)
     }
 
+    /**
+     * Selalu menghasilkan "scheme://host:FIXED_PORT/".
+     *
+     * Port sengaja dipaksa, bukan sekadar dijadikan default: perangkat yang sudah terpasang
+     * menyimpan base URL versi lama (mis. port 3000) di SharedPreferences. Tanpa pemaksaan ini,
+     * mereka akan tetap menembak port lama setelah backend pindah dan langsung berhenti bekerja.
+     */
     fun normalizeBaseUrl(input: String): String {
         val trimmed = input.trim()
         val withScheme = if (
@@ -152,7 +165,12 @@ object ApiClient {
             "http://$trimmed"
         }
 
-        return if (withScheme.endsWith("/")) withScheme else "$withScheme/"
+        val parsed = Uri.parse(withScheme)
+        val scheme = parsed.scheme?.lowercase() ?: "http"
+        val host = parsed.host.orEmpty()
+        if (host.isBlank()) return DEFAULT_BASE_URL
+
+        return "$scheme://$host:$FIXED_PORT/"
     }
 
     private fun getRetrofit(): Retrofit {

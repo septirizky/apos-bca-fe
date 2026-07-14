@@ -21,7 +21,6 @@ import retrofit2.Response
 class ApiSettingsActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityApiSettingsBinding
-    private val fixedBasePort = 3000
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,8 +59,9 @@ class ApiSettingsActivity : AppCompatActivity() {
     }
 
     private fun updateSocketPreview() {
+        // Port sengaja tidak ditampilkan di layar ini.
         val host = binding.editBaseHost.text.toString().trim()
-        binding.txtResolvedSocket.text = "Realtime: ws://$host:$fixedBasePort/realtime"
+        binding.txtResolvedSocket.text = "Realtime: ws://$host/realtime"
     }
 
     private fun saveConfig() {
@@ -94,7 +94,7 @@ class ApiSettingsActivity : AppCompatActivity() {
     }
 
     private fun buildFixedBaseUrl(host: String): String {
-        return "http://$host:$fixedBasePort/"
+        return "http://$host:${ApiClient.FIXED_PORT}/"
     }
 
     private fun extractHost(baseUrl: String): String {

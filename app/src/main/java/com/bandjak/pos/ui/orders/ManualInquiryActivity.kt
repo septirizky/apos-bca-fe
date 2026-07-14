@@ -153,10 +153,19 @@ class ManualInquiryActivity : AppCompatActivity() {
             }
 
             val intent = AposDeepLink.intent(
+                context = this,
                 packageName = aposPackage,
                 featureType = FeatureType.MANUAL_INQUIRY,
                 transactionData = transactionData
             )
+            if (intent == null) {
+                Toast.makeText(
+                    this,
+                    "APOS tidak menyediakan layar manual inquiry. Pakai Cek Status.",
+                    Toast.LENGTH_LONG
+                ).show()
+                return@withAposService
+            }
 
             try {
                 refIdAwaitingApos = transaction.partnerRefId

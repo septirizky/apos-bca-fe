@@ -2014,8 +2014,35 @@ class PaymentActivity : AppCompatActivity() {
         val transactionData = prepareTransactionData(partnerRefId, amount)
         // Package APOS yang benar-benar ter-bind (mis. com.bca.apos.castles).
         val aposPackage = aposManager.aposPackageName ?: BuildConfig.BCA_APOS_PACKAGE_NAME
-        val deepLink = AposDeepLink.url(featureType)
-        val intent = AposDeepLink.intent(aposPackage, featureType, transactionData)
+        val intent = AposDeepLink.intent(this, aposPackage, featureType, transactionData)
+
+        if (intent == null) {
+            // Tidak ada host deep link yang ter-resolve: APOS tidak terpasang atau tidak kompatibel.
+            // Gagal di sini, sebelum ada transaksi tertunda yang dicatat.
+            isCompletingPayment = false
+            binding.btnCompletePayment.isEnabled = true
+            logAposEvent(
+                call = AposDeepLink.url(AposDeepLink.AUTHORITY, featureType),
+                request = mapOf(
+                    "event" to "APOS_DEEP_LINK",
+                    "partner_ref_id" to partnerRefId,
+                    "feature" to featureType.uriSuffix
+                ),
+                response = mapOf("service_package" to aposPackage),
+                statusCode = 404,
+                errorCode = "APOS_APP_NOT_FOUND",
+                message = "Aplikasi APOS BCA tidak ditemukan",
+                success = false
+            )
+            showTransactionStatus(
+                success = false,
+                title = "Pembayaran Gagal",
+                message = "Aplikasi APOS BCA tidak ditemukan"
+            )
+            return
+        }
+
+        val deepLink = "android-app://${intent.data?.host}/${featureType.uriSuffix}"
 
         pendingPartnerRefId = partnerRefId
         didLaunchApos = true
